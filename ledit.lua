@@ -9,7 +9,7 @@
 	
 	todo:
 	ctrl+backspace/ctrl+delete
-	collapsable blocks?
+	collapsable blocks? (code folding)
 	add command system done(ish)
 		change configuration on the fly
 		make/resize panes
@@ -27,6 +27,29 @@
 		should be one single file for portability
 		
 ]]
+pr = print
+function print(...)
+	pr(...,"\r")
+end
+
+function printTable(tabl, wid)
+	if not wid then wid = 1 end
+	if wid > 1 then return end
+	for i,v in pairs(tabl) do
+		--if type(i) == "number" then if i >= 1000 then break end end
+		if type(v) == "table" then
+			print(string.rep(" ", wid * 3) .. i .. " = {")
+			printTable(v, wid + 1)
+			print(string.rep(" ", wid * 3) .. "}")
+		elseif type(v) == "string" then
+			print(string.rep(" ", wid * 3) .. i .. " = \"" .. v .. "\"")
+		elseif type(v) == "number" then
+			print(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. v..",")
+			if v == nil then error("nan") end
+		end 
+	end 
+end
+
 stty = "stty"
 
 esc = "\x1b["
@@ -64,9 +87,9 @@ function insertLeft(node,newNode)
 	end
 	return false
 end
-function insertRight(node,newNode)
+function insertRight(node,newNod)
 	if isLeaf(node) then
-		node = newNode(newNode,node)
+		node = newNode(newNod,node)
 		return true
 	end
 	return false
@@ -93,6 +116,73 @@ function removeRight(node)
 			node.left = nil
 		end
 	end
+end
+
+--adjust the size for a node and all it's children
+--recursive funciton
+function updateSize(node,width,height,x,y)
+	if isNode(node) then
+		if isLeaf(left) then
+			if node.h then
+				left.termCols = math.floor(width/2)
+				left.termLines = height
+			else
+				left.termLines = math.floor(height/2)
+				left.termCols = width
+			end
+			left.x = x
+			left.y = y
+			left.redraw = true
+		else
+			if node.h then
+				updateSize(left,math.floor(width/2),height,x,y)
+			else
+				updateSize(left,width,math.floor(height/2),x,y)
+			end
+		end
+		if isLeaf(right) then
+			if node.h then
+				right.termCols = width - math.floor(width/2)
+				right.termLines = height
+				right.x = math.floor(width/2)+1
+				right.y = y
+			else
+				right.termLines = height - math.floor(height/2)
+				right.termCols = width
+				left.x = x
+				left.y = math.floor(height/2)+1
+			end
+			right.redraw = true
+		else
+			if node.h then
+				updateSize(right,width-math.floor(width/2),height,math.floor(width/2)+1,y)
+			else
+				updateSize(right,width,height-math.floor(height/2),x,math.floor(height/2)+1)
+			end
+		end
+	else
+		error("tried to adjust a leaf")
+	end
+end
+
+--traverse the tree to find the window with the id we want
+function getID(tree,id)
+	if not id then error("id expected got nil") end
+	if isLeaf(tree) then
+		if id == tree.id then
+			return tree
+		end
+	else
+		local a = getID(tree.left,id)
+		if a then
+			return a
+		end
+		a = getID(tree.right,id)
+		if a then
+			return a
+		end
+	end
+	return false
 end
 
 --[[
@@ -1191,7 +1281,9 @@ end
 
 function handleKeyInput(charIn)
 	local args,prefix,a = parseInput(charIn)
-	local w = windows[currentWindow]
+	local w = getID(windows,currentWindow)
+	--error(w.id)
+	--local w = windows[currentWindow]
 	if w.welcome then w.redraw = true end
 	w.welcome = false
 	
@@ -1248,6 +1340,7 @@ function handleKeyInput(charIn)
 		elseif a == ctrl("e") then
 			local com = w:prompt("enter command >")
 			if com == "vsplit" then
+				--[[
 				--make the current view about half the size it is now
 				w.termCols = math.floor(w.termCols/2)
 				--make a new window and set it's size
@@ -1262,6 +1355,17 @@ function handleKeyInput(charIn)
 				w.redraw = true
 				w.message = ""
 				currentWindow = #windows
+				]]
+				local newWin = newWindow()
+				newWin.y = w.y
+				newWin.x = w.termCols+1
+				newWin.termCols = w.termCols
+				newWin.termLines = w.termLines
+				newWin.realTermLines = newWin.termLines+2--account for the status bars
+				newWin:openFile()
+				insertRight(w,newWin)
+				--updateSize(windows,w.termCols,w.termLines,0,1)
+				printTable(windows)
 			elseif com == "hsplit" then
 				--make the current view about half the size it is now
 				w.termLines = math.floor(w.termLines/2)
@@ -1490,9 +1594,11 @@ function handleKeyInput(charIn)
 			--error(args[2])
 			local isShift = false
 			local isCtrl  = false
-			if args[2] == 2 then isShift = true end
-			if args[2] == 5 then isCtrl  = true end
-			if args[2] == 6 then isCtrl  = true ; isShift = true end
+			if args then
+				if args[2] == 2 then isShift = true end
+				if args[2] == 5 then isCtrl  = true end
+				if args[2] == 6 then isCtrl  = true ; isShift = true end
+			end
 			
 			if not w.selecting and isShift then
 				w.selectionStart = {w.cursorx,w.cursory}
@@ -2084,16 +2190,38 @@ function newWindow()--sets defaults
 end
 
 windows = {}
-windows[1] = newWindow()
+--windows[1] = newWindow()
+windows = newWindow()
 --windows[1].filename = "ledit.lua"
 ags = {...}
 if ags[1] then
-	windows[1].filename = ags[1]
+	windows.filename = ags[1]
 end
 currentWindow = 1--window input should be affecting
 
 running = true
 clear = true
+
+function renderTree(tree)--goes through the tree and renders each window if needed
+	if isLeaf(tree) then
+		if tree.id == currentWindow or tree.redraw then
+			stat,erro = pcall(tree.drawScreen,tree)
+			if not stat then
+				line = 4
+				return false
+			end
+		end
+		return true
+	else
+		if renderTree(tree.left) then
+			if renderTree(tree.right) then
+				return true
+			end
+			return false
+		end
+		return false
+	end
+end
 
 function main()
 	mode,err,msg = savemode()
@@ -2102,7 +2230,7 @@ function main()
 		setrawmode()
 		--drawScreen()
 		
-		local w = windows[1]
+		local w = windows
 		w.x = 1
 		w.termLines,w.termCols = getScreenSize()
 		--w.termCols = math.floor(w.termCols/2)
@@ -2116,6 +2244,8 @@ function main()
 			goto END
 		end
 		
+		
+		--[[
 		for i = 1,#windows do
 			if i ~= currentWindow then
 				stat,erro = pcall(windows[i].drawScreen,windows[i])
@@ -2132,7 +2262,10 @@ function main()
 			line = 2
 			goto END
 		end
+		]]
+		
 		--w:drawScreen()
+		renderTree(windows)
 		while running do
 			stat,erro = pcall(handleKeyInput)
 			if not stat then
@@ -2141,6 +2274,10 @@ function main()
 			end
 
 			if clear then
+				if not renderTree(windows) then
+					break
+				end
+				--[[
 				for i = 1,#windows do
 						if (i == currentWindow or windows[i].redraw) and i ~= currentWindow then
 						stat,erro = pcall(windows[i].drawScreen,windows[i])
@@ -2159,6 +2296,7 @@ function main()
 					line = 4
 					break
 				end
+				]]
 			end
 		end
 	else	
