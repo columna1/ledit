@@ -47,6 +47,8 @@ function printTable(tabl, wid)
 		elseif type(v) == "number" then
 			print(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. v..",")
 			if v == nil then error("nan") end
+		elseif type(v) == "boolean" then
+			print(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. (v and "true" or "false") ..",")
 		end 
 	end 
 end
@@ -172,9 +174,9 @@ function updateSize(node,width,height,x,y)
 			right.redraw = true
 		else
 			if node.h then
-				updateSize(node.right,width-math.floor(width/2),height,math.floor(width/2)+1,y)
+				updateSize(node.right,width-math.floor(width/2),height,x+math.floor(width/2),y)
 			else
-				updateSize(node.right,width,height-math.floor(height/2),x,math.floor(height/2)+1)
+				updateSize(node.right,width,height-math.floor(height/2),x,y+math.floor(height/2))
 			end
 		end
 	else
@@ -1357,6 +1359,9 @@ function handleKeyInput(charIn)
 		elseif string.byte(a) == 13 then --enter pressed
 			w:insertRow(w.cursory,w.cursorx)
 			w.dirty = true
+		elseif a == ctrl("p") then--ctrl+p --print tree
+			print()
+			printTable(tree)
 		elseif a == ctrl("q") then--ctrl+q quit
 			if w.dirty then
 				w.message = "Changes haven't been saved, press ctrl+q "..w.quitConfTimes-w.quitTimes.." more times to quit without saving" 
@@ -1371,6 +1376,16 @@ function handleKeyInput(charIn)
 		w.redraw = true
 		w:drawScreen()
 		w:updateSyntaxHighlight()
+		elseif a == ctrl("j") then
+			local cw = currentWindow
+			for i,_ in pairs(windows) do
+				if i < currentWindow then cw = i end
+			end
+			currentWindow = cw
+		elseif a == ctrl("k") then
+			for i,_ in pairs(windows) do
+				if i > currentWindow then currentWindow = i ; break end
+			end
 		elseif a == ctrl("f") then
 			local searchTerm = w:prompt("search for >")
 			if searchTerm and #w.rows > 0 then
@@ -1401,6 +1416,7 @@ function handleKeyInput(charIn)
 				newWin.realTermLines = newWin.termLines+2--account for the status bars
 				newWin:openFile()
 				local id = insertWindow(newWin)
+				newWin.id = id
 				insertRight(getLeafByID(tree,currentWindow),id)
 				currentWindow = id
 				local node = getNodeByID(tree,currentWindow)
@@ -1428,6 +1444,7 @@ function handleKeyInput(charIn)
 				newWin.realTermLines = newWin.termLines+2--account for the status bars
 				newWin:openFile()
 				local id = insertWindow(newWin)
+				newWin.id = id
 				insertRight(getLeafByID(tree,currentWindow),id)
 				currentWindow = id
 				local node = getNodeByID(tree,currentWindow)
@@ -1461,7 +1478,11 @@ function handleKeyInput(charIn)
 				w.termLines = w.termLines - 2
 				w.redraw = true
 			end]]
-			if #windows > 1 then
+			local numwin = 0
+			for i,_ in pairs(windows) do
+				numwin = numwin + 1
+			end
+			if numwin > 1 then
 				--error()
 				local node = getNodeByID(tree,currentWindow)
 				if node.left.id == currentWindow then
@@ -2031,7 +2052,6 @@ function win:drawLine(line)
 	str = str..setCursor(self.x,line-self.scroll+self.y)
 	str = str..self:genLine(line-self.scroll)
 	io.write(str)
-	--print("FUCK YOU")
 	io.write(self:updateCursor()..self:checkHideCursor())
 end
 
@@ -2060,7 +2080,7 @@ function win:drawStatusBar()
 	end
 	str = str.." "..self.cursory.."/"..#self.rows
 	--str = str.."      "..self.x..","..self.y
-	--str = str.."  ids:"..#windows
+	str = str.."  id:"..self.id.."/"..#windows
 	
 	--undo/redo info
 	--[[
@@ -2285,6 +2305,7 @@ ags = {...}
 if ags[1] then
 	windows[1].filename = ags[1]
 end
+windows[1].id = 1
 currentWindow = 1--window input should be affecting
 
 running = true
