@@ -8,6 +8,7 @@
 	if command stty isn't found, find your equivilant for your terminal and replace the "stty = "stty"" with your own version
 	
 	todo:
+	make windows that have the same file open use the same text buffers
 	ctrl+backspace/ctrl+delete
 	collapsable blocks? (code folding)
 	add command system done(ish)
@@ -34,7 +35,7 @@ end
 
 function printTable(tabl, wid)
 	if not wid then wid = 1 end
-	if wid > 1 then return end
+	--if wid > 1 then return end
 	for i,v in pairs(tabl) do
 		--if type(i) == "number" then if i >= 1000 then break end end
 		if type(v) == "table" then
@@ -61,47 +62,53 @@ carefulClipBoard = false
 
 --window class
 win = {}
-lastID = 1
 
+tree = {}
 function newNode(left,right)
 	return {["left"] = left,["right"] = right}
 end
 
 function isLeaf(node)
-	if not node.left and not node.right then
+	if not node.left and not node.right and node.id then
 		return true
 	end
 	return false
 end
 function isNode(node)
-	if node.left and node.right then
+	if node.left and node.right and not node.id then
 		return true
 	end
 	return false
 end
 
-function insertLeft(node,newNode)
+function insertLeft(node,nodeID)
 	if isLeaf(node) then
-		node = newNode(node,newNode)
+		--node = newNode(node,newNod)
+		node.left = {["id"] = nodeID}
+		node.right = {["id"] = node.id}
+		node.id = nil
 		return true
 	end
 	return false
 end
-function insertRight(node,newNod)
+function insertRight(node,nodeID)
 	if isLeaf(node) then
-		node = newNode(newNod,node)
-		return true
+		--newNode(newNod,node)
+		node.left = {["id"] = node.id}
+		node.right = {["id"] = nodeID}
+		node.id = nil
 	end
-	return false
+	return node
 end
 
 function removeLeft(node)
 	if not isLeaf(node) then
 		node.left = nil
 		if isNode(node.right) then
-			node = node.right
+			node.left = node.right.left
+			node.right = node.right.right
 		elseif isLeaf(node.right) then
-			node.value = node.right
+			node.id = node.right.id
 			node.right = nil
 		end
 	end
@@ -110,9 +117,10 @@ function removeRight(node)
 	if not isLeaf(node) then
 		node.right = nil
 		if isNode(node.left) then
-			node = node.left
+			node.left = node.left.left
+			node.left = node.left.right
 		elseif isLeaf(node.left) then
-			node.value = node.left
+			node.id = node.left.id
 			node.left = nil
 		end
 	end
@@ -122,12 +130,15 @@ end
 --recursive funciton
 function updateSize(node,width,height,x,y)
 	if isNode(node) then
-		if isLeaf(left) then
+		if isLeaf(node.left) then
+			local left = windows[node.left.id]
 			if node.h then
 				left.termCols = math.floor(width/2)
-				left.termLines = height
+				left.termLines = height-2
+				left.realTermLines = height
 			else
-				left.termLines = math.floor(height/2)
+				left.realTermLines = math.floor(height/2)
+				left.termLines = left.realTermLines-2
 				left.termCols = width
 			end
 			left.x = x
@@ -135,51 +146,77 @@ function updateSize(node,width,height,x,y)
 			left.redraw = true
 		else
 			if node.h then
-				updateSize(left,math.floor(width/2),height,x,y)
+				updateSize(node.left,math.floor(width/2),height,x,y)
 			else
-				updateSize(left,width,math.floor(height/2),x,y)
+				updateSize(node.left,width,math.floor(height/2),x,y)
 			end
 		end
-		if isLeaf(right) then
+		if isLeaf(node.right) then
+			local right = windows[node.right.id]
+			local left = windows[node.left.id]
 			if node.h then
 				right.termCols = width - math.floor(width/2)
-				right.termLines = height
-				right.x = math.floor(width/2)+1
+				right.termLines = height-2
+				right.realTermLines = height
+				right.x = x+math.floor(width/2)
 				right.y = y
 			else
-				right.termLines = height - math.floor(height/2)
+				right.realTermLines = height - math.floor(height/2)
+				right.termLines = right.realTermLines-2
 				right.termCols = width
-				left.x = x
-				left.y = math.floor(height/2)+1
+				right.x = x
+				right.y = y+math.floor(height/2)
 			end
 			right.redraw = true
 		else
 			if node.h then
-				updateSize(right,width-math.floor(width/2),height,math.floor(width/2)+1,y)
+				updateSize(node.right,width-math.floor(width/2),height,math.floor(width/2)+1,y)
 			else
-				updateSize(right,width,height-math.floor(height/2),x,math.floor(height/2)+1)
+				updateSize(node.right,width,height-math.floor(height/2),x,math.floor(height/2)+1)
 			end
 		end
 	else
-		error("tried to adjust a leaf")
+		windows[node.id].realTermLines = height
+		windows[node.id].termLines = height-2
+		windows[node.id].termCols = width
+		windows[node.id].x = x
+		windows[node.id].y = y
+		windows[node.id].redraw = true
 	end
 end
 
 --traverse the tree to find the window with the id we want
-function getID(tree,id)
+function getLeafByID(tree,id)
 	if not id then error("id expected got nil") end
 	if isLeaf(tree) then
 		if id == tree.id then
 			return tree
 		end
 	else
-		local a = getID(tree.left,id)
+		local a = getLeafByID(tree.left,id)
 		if a then
 			return a
 		end
-		a = getID(tree.right,id)
+		a = getLeafByID(tree.right,id)
 		if a then
 			return a
+		end
+	end
+	return false
+end
+
+function getNodeByID(tree,id)
+	if not id then error("id expected got nil") end
+	if isNode(tree) then
+		if isNode(tree.left) then
+			return getNodeByID(tree.left,id)
+		elseif tree.left.id == id then
+			return tree
+		end
+		if isNode(tree.right) then
+			return getNodeByID(tree.right,id)
+		elseif tree.right.id == id then
+			return tree
 		end
 	end
 	return false
@@ -1281,9 +1318,9 @@ end
 
 function handleKeyInput(charIn)
 	local args,prefix,a = parseInput(charIn)
-	local w = getID(windows,currentWindow)
+	--local w = getID(windows,currentWindow)
 	--error(w.id)
-	--local w = windows[currentWindow]
+	local w = windows[currentWindow]
 	if w.welcome then w.redraw = true end
 	w.welcome = false
 	
@@ -1340,8 +1377,8 @@ function handleKeyInput(charIn)
 		elseif a == ctrl("e") then
 			local com = w:prompt("enter command >")
 			if com == "vsplit" then
-				--[[
 				--make the current view about half the size it is now
+				--[[
 				w.termCols = math.floor(w.termCols/2)
 				--make a new window and set it's size
 				local newWin = newWindow()
@@ -1351,29 +1388,29 @@ function handleKeyInput(charIn)
 				newWin.termLines = w.termLines
 				newWin.realTermLines = newWin.termLines+2--account for the status bars
 				newWin:openFile()
-				table.insert(windows,newWin)
 				w.redraw = true
 				w.message = ""
 				currentWindow = #windows
+				--printTable(windows)
 				]]
 				local newWin = newWindow()
-				newWin.y = w.y
-				newWin.x = w.termCols+1
 				newWin.termCols = w.termCols
 				newWin.termLines = w.termLines
 				newWin.realTermLines = newWin.termLines+2--account for the status bars
 				newWin:openFile()
-				insertRight(w,newWin)
-				--updateSize(windows,w.termCols,w.termLines,0,1)
-				printTable(windows)
+				local id = insertWindow(newWin)
+				insertRight(getLeafByID(tree,currentWindow),id)
+				currentWindow = id
+				local node = getNodeByID(tree,currentWindow)
+				node.h = true
+				updateSize(node,w.termCols,w.realTermLines,w.x,w.y)
 			elseif com == "hsplit" then
+				--[[
 				--make the current view about half the size it is now
 				w.termLines = math.floor(w.termLines/2)
 				w.realTermLines = w.termLines+2
 				--make a new window and set it's size
 				local newWin = newWindow()
-				newWin.y = w.realTermLines
-				newWin.x = w.x
 				newWin.termLines = w.termLines-1
 				newWin.termCols = w.termCols
 				newWin.realTermLines = newWin.termLines+2--account for the status bars
@@ -1382,6 +1419,18 @@ function handleKeyInput(charIn)
 				w.redraw = true
 				w.message = ""
 				currentWindow = #windows
+				]]
+				local newWin = newWindow()
+				newWin.termCols = w.termCols
+				newWin.termLines = w.termLines
+				newWin.realTermLines = newWin.termLines+2--account for the status bars
+				newWin:openFile()
+				local id = insertWindow(newWin)
+				insertRight(getLeafByID(tree,currentWindow),id)
+				currentWindow = id
+				local node = getNodeByID(tree,currentWindow)
+				node.h = false
+				updateSize(node,w.termCols,w.realTermLines,w.x,w.y)
 			end
 		--[[
 		elseif a == ctrl("n") then
@@ -1397,6 +1446,7 @@ function handleKeyInput(charIn)
 			showCursor = not showCursor]]
 		elseif a == ctrl("w") then--close current windo
 			--hardcode to work with 2 windows, just assume
+			--[[
 			if #windows == 2  then
 				--close current window and make the other window full screen
 				table.remove(windows,currentWindow)
@@ -1408,7 +1458,23 @@ function handleKeyInput(charIn)
 				w.realTermLines = w.termLines
 				w.termLines = w.termLines - 2
 				w.redraw = true
-			end 
+			end]]
+			if #windows > 1 then
+				--error()
+				local node = getNodeByID(tree,currentWindow)
+				if node.left.id == currentWindow then
+					--for now close without prompting to save
+					windows[currentWindow] = nil
+					currentWindow = node.right.id
+					removeLeft(node)
+					updateSize(tree,tw,th,1,0)
+				elseif node.right.id == currentWindow then
+					windows[currentWindow] = nil
+					currentWindow = node.left.id
+					removeRight(node)
+					updateSize(tree,tw,th,1,0)
+				end
+			end
 		elseif a == ctrl("x") then
 			if w.selecting then
 				--setclipboard(rows[cursory])
@@ -1706,7 +1772,7 @@ function handleKeyInput(charIn)
 					local di = true
 					if not (args[2] > w.x and args[2] <= w.x+w.termCols and args[3] > w.y and args[3] <= w.y+w.termLines) then
 						di = false
-						for i = 1,#windows do
+						for i,_ in pairs(windows) do
 							if args[2] > windows[i].x and args[2] <= windows[i].x+windows[i].termCols and args[3] > windows[i].y and args[3] <= windows[i].y+windows[i].termLines then
 								w = windows[i]
 								currentWindow = i
@@ -1985,6 +2051,8 @@ function win:drawStatusBar()
 		str = str.." "..self.filetype
 	end
 	str = str.." "..self.cursory.."/"..#self.rows
+	--str = str.."      "..self.x..","..self.y
+	--str = str.."  ids:"..#windows
 	
 	--undo/redo info
 	--[[
@@ -2124,8 +2192,6 @@ end
 
 function newWindow()--sets defaults
 	local self = {}
-	self.id = lastID
-	lastID = lastID + 1
 	self.x = 1
 	self.y = 0
 	--state
@@ -2189,19 +2255,36 @@ function newWindow()--sets defaults
 	return self
 end
 
+function insertWindow(win)
+	local tabs = {}
+	for i,_ in pairs(windows) do
+		tabs[i] = true
+	end
+	table.insert(windows,win)
+	for i,_ in pairs(windows) do
+		if not tabs[i] then
+			return i
+		end
+	end
+	return nil
+end
+
 windows = {}
---windows[1] = newWindow()
-windows = newWindow()
+windows[1] = newWindow()
+--windows = newWindow()
 --windows[1].filename = "ledit.lua"
 ags = {...}
 if ags[1] then
-	windows.filename = ags[1]
+	windows[1].filename = ags[1]
 end
 currentWindow = 1--window input should be affecting
 
 running = true
 clear = true
+tree = {}
+tree.id = 1
 
+--[[
 function renderTree(tree)--goes through the tree and renders each window if needed
 	if isLeaf(tree) then
 		if tree.id == currentWindow or tree.redraw then
@@ -2222,6 +2305,7 @@ function renderTree(tree)--goes through the tree and renders each window if need
 		return false
 	end
 end
+]]
 
 function main()
 	mode,err,msg = savemode()
@@ -2230,9 +2314,10 @@ function main()
 		setrawmode()
 		--drawScreen()
 		
-		local w = windows
+		local w = windows[1]
 		w.x = 1
-		w.termLines,w.termCols = getScreenSize()
+		th,tw = getScreenSize()
+		w.termLines,w.termCols = th,tw
 		--w.termCols = math.floor(w.termCols/2)
 		--w.termLines = math.floor(w.termLines/2)
 		w.realTermLines = w.termLines
@@ -2264,8 +2349,8 @@ function main()
 		end
 		]]
 		
-		--w:drawScreen()
-		renderTree(windows)
+		w:drawScreen()
+		--renderTree(windows)
 		while running do
 			stat,erro = pcall(handleKeyInput)
 			if not stat then
@@ -2274,12 +2359,11 @@ function main()
 			end
 
 			if clear then
-				if not renderTree(windows) then
-					break
-				end
-				--[[
-				for i = 1,#windows do
-						if (i == currentWindow or windows[i].redraw) and i ~= currentWindow then
+				--if not renderTree(windows) then
+				--	break
+				--end
+				for i,_ in pairs(windows) do
+					if (i == currentWindow or windows[i].redraw) and i ~= currentWindow then
 						stat,erro = pcall(windows[i].drawScreen,windows[i])
 						--w:drawScreen()
 						if not stat then
@@ -2296,7 +2380,6 @@ function main()
 					line = 4
 					break
 				end
-				]]
 			end
 		end
 	else	
