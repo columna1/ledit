@@ -105,6 +105,7 @@ function removeLeft(node)
 	if not isLeaf(node) then
 		node.left = nil
 		if isNode(node.right) then
+			node.h = node.right.h
 			node.left = node.right.left
 			node.right = node.right.right
 		elseif isLeaf(node.right) then
@@ -117,8 +118,9 @@ function removeRight(node)
 	if not isLeaf(node) then
 		node.right = nil
 		if isNode(node.left) then
+			node.h = node.left.h
+			node.right = node.left.right
 			node.left = node.left.left
-			node.left = node.left.right
 		elseif isLeaf(node.left) then
 			node.id = node.left.id
 			node.left = nil
@@ -550,7 +552,7 @@ function runProgram(prog)
 	io.read()
 	setrawmode()
 	--make all windows re-render
-	for i = 1,#windows do
+	for i,k in pairs(windows) do
 		windows[i].redraw = true
 	end
 end
@@ -559,7 +561,7 @@ function runProgramNoPause(prog)
 	restoremode(mode)
 	os.execute(prog)
 	setrawmode()
-	for i = 1,#windows do
+	for i,k in pairs(windows) do
 		windows[i].redraw = true
 	end
 end
@@ -1474,6 +1476,12 @@ function handleKeyInput(charIn)
 					removeRight(node)
 					updateSize(tree,tw,th,1,0)
 				end
+				if currentWindow == nil then
+					for i,_ in pairs(windows) do
+						currentWindow = i
+						break
+					end
+				end
 			end
 		elseif a == ctrl("x") then
 			if w.selecting then
@@ -1745,7 +1753,7 @@ function handleKeyInput(charIn)
 			local di = true
 			if not (args[2] > w.x and args[2] <= w.x+w.termCols and args[3] > w.y and args[3] <= w.y+w.termLines) then
 				di = false
-				for i = 1,#windows do
+				for i,_ in pairs(windows) do
 					if args[2] > windows[i].x and args[2] <= windows[i].x+windows[i].termCols and args[3] > windows[i].y and args[3] <= windows[i].y+windows[i].termLines then
 						w = windows[i]
 						di = true
