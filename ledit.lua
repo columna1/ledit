@@ -8,7 +8,7 @@
 	if command stty isn't found, find your equivilant for your terminal and replace the "stty = "stty"" with your own version
 	
 	todo:
-	make windows that have the same file open use the same text buffers
+	make windows that have the same file open use the same text buffers (buffer sharing)
 	ctrl+backspace/ctrl+delete
 	collapsable blocks? (code folding)
 	add command system done(ish)
@@ -19,6 +19,7 @@
 	config?
 	file tabs?
 	better language definition?
+	stream file (read only what's needed from the file, this allows opening of large files without slow down)
 	plugins???
 	
 	--cutting or delection a section doesn't update the multi-comment table correctly?
@@ -55,7 +56,8 @@ end
 
 stty = "stty"
 
-esc = "\x1b["
+csi = "\x1b"
+esc = csi.."["
 endl = "\r\n"
 
 
@@ -133,15 +135,25 @@ end
 --adjust the size for a node and all it's children
 --recursive funciton
 function updateSize(node,width,height,x,y)
+	if not width then width = node.width end
+	if not height then height = node.height end
+	if not x then x = node.x end
+	if not y then y = node.y end
+	node.width = width
+	node.height = height
+	node.x = x
+	node.y = y
+	if not node.offset then node.offset = 0 end
+	local offset = node.offset
 	if isNode(node) then
 		if isLeaf(node.left) then
 			local left = windows[node.left.id]
 			if node.h then
-				left.termCols = math.floor(width/2)
+				left.termCols = math.floor(width/2)+offset
 				left.termLines = height-2
 				left.realTermLines = height
 			else
-				left.realTermLines = math.floor(height/2)
+				left.realTermLines = math.floor(height/2)+offset
 				left.termLines = left.realTermLines-2
 				left.termCols = width
 			end
@@ -150,33 +162,33 @@ function updateSize(node,width,height,x,y)
 			left.redraw = true
 		else
 			if node.h then
-				updateSize(node.left,math.floor(width/2),height,x,y)
+				updateSize(node.left,math.floor(width/2)+offset,height,x,y)
 			else
-				updateSize(node.left,width,math.floor(height/2),x,y)
+				updateSize(node.left,width,math.floor(height/2)+offset,x,y)
 			end
 		end
 		if isLeaf(node.right) then
 			local right = windows[node.right.id]
 			local left = windows[node.left.id]
 			if node.h then
-				right.termCols = width - math.floor(width/2)
+				right.termCols = width - math.floor(width/2)-offset
 				right.termLines = height-2
 				right.realTermLines = height
-				right.x = x+math.floor(width/2)
+				right.x = x+math.floor(width/2)+offset
 				right.y = y
 			else
-				right.realTermLines = height - math.floor(height/2)
+				right.realTermLines = height - math.floor(height/2)-offset
 				right.termLines = right.realTermLines-2
 				right.termCols = width
 				right.x = x
-				right.y = y+math.floor(height/2)
+				right.y = y+math.floor(height/2)+offset
 			end
 			right.redraw = true
 		else
 			if node.h then
-				updateSize(node.right,width-math.floor(width/2),height,x+math.floor(width/2),y)
+				updateSize(node.right,width-math.floor(width/2)-offset,height,x+math.floor(width/2)+offset,y)
 			else
-				updateSize(node.right,width,height-math.floor(height/2),x,y+math.floor(height/2))
+				updateSize(node.right,width,height-math.floor(height/2)-offset,x,y+math.floor(height/2)+offset)
 			end
 		end
 	else
@@ -644,6 +656,7 @@ function win:setcursorx(x)
 end
 
 function win:CxtoRx(row,cx)
+	--if not row then return end
 	if type(row) == "number" then
 		row = self.rows[row]
 	end
@@ -659,6 +672,7 @@ function win:CxtoRx(row,cx)
 	return rx
 end
 function win:RxtoCx(row,rx)
+	--if not row then return end
 	if type(row) == "number" then
 		row = self.rows[row]
 	end
@@ -1111,74 +1125,124 @@ function win:getLastSeperatorInRow(char,row)
 	return pos+1
 end
 
-function win:search(token)
-	local found = 0
-	while true do
-		local lfound = 0
-		local gotOne = false
-		for i = self.cursory,#self.rows do
-			local s,e = self.rows[i]:find(token)
-			if s then
-				lfound = lfound + 1
-				if lfound > found then
-					self:setcursorx(s)
-					self.cursory = i
-					found = lfound
-					gotOne = true
-					break
-				end
-			end
+function copyTable(tab)
+	local t = {}
+	if type(tab) == "table" then
+		for i,k in pairs(tab) do
+			t[i] = k
 		end
-		if not gotOne then
-			for i = 1,self.cursory do
-				local s,e = self.rows[i]:find(token)
-				if s then
-					lfound = lfound + 1
-					if lfound > found then
-						self:setcursorx(s)
-						self.cursory = i
-						found = lfound
-						gotOne = true
-						break
-					end
-				end
-			end
-		end
-		self.toscroll = true
-		self.redraw = true
-		if gotOne then self.message = "found, press enter for the next one" end
-		if not gotOne and lfound == 0 then self.message = "not found" ; break end
-		if not gotOne then self.message = "no more found, wrapping around" ; found = 0 end
-		self:drawScreen()
-		local c = getNextByte()
-		if string.byte(c) ~= 13 then
-			self.message = ""
-			self.redraw = true
-			handleKeyInput(c)
-			break
-		end
+	else
+		t = tab
 	end
+	return t
 end
 
-function win:prompt(m)
+function win:searchCallback(querry,key)
+	if key == "\t" then self.si.lastMatch = self.si.lastMatch + 1 else self.si.lastMatch = 0 end
+	local numfound = 0
+	for i = self.si.cy,#self.rows do
+		local s,e = self.rows[i]:lower():find(querry:lower(),1,querry)
+		while s do
+			if s and numfound >= self.si.lastMatch then
+				self.cursory = i
+				self.cursorx = e
+				self.selectionStart = {s,i}
+				self.selectionEnd = {e+1,i}
+				self.selecting = true
+				--self.toscroll = true
+				self.scroll = math.max(self.cursory-math.floor(self.termLines/2),0)
+				self.redraw = true
+				return true
+			elseif s then
+				numfound = numfound + 1
+			end
+			s,e = self.rows[i]:lower():find(querry:lower(),e+1,querry)
+		end
+	end
+	for i = 1,self.si.cy do
+		s,e = self.rows[i]:lower():find(querry:lower(),1,querry)
+		while s do
+			if s and numfound >= self.si.lastMatch then
+				self.cursory = i
+				self.cursorx = e
+				self.selectionStart = {s,i}
+				self.selectionEnd = {e+1,i}
+				self.selecting = true
+				--self.toscroll = true
+				self.scroll = math.max(self.cursory-math.floor(self.termLines/2),0)
+				self.redraw = true
+				return true
+			elseif s then
+				numfound = numfound + 1
+			end
+			s,e = self.rows[i]:lower():find(querry:lower(),e+1,querry)
+		end
+	end
+	self.message = self.message.."  **not found"
+	self.cursorx = self.si.cx
+	self.cursory = self.si.cy
+	self.selectionStart = copyTable(self.si.selectionStart)
+	self.selectionEnd = copyTable(self.si.selectionEnd)
+	self.selecting = copyTable(self.si.selecting)
+	self.toscroll = true
+	self.redraw = true
+	return false
+end
+
+function win:search()
+	self.si = {}
+	self.si.cx = self.cursorx
+	self.si.cy = self.cursory
+	self.si.selectionStart = copyTable(self.selectionStart)
+	self.si.selectionEnd = copyTable(self.selectionEnd)
+	self.si.selecting = self.selecting
+	
+	self.si.lastMatch = 0
+	local searchTerm = self:prompt("search for >",self.searchCallback)
+	
+	if not searchTerm then
+		self.cursorx = self.si.cx
+		self.cursory = self.si.cy
+		self.selectionStart = copyTable(self.si.selectionStart)
+		self.selectionEnd = copyTable(self.si.selectionEnd)
+		self.selecting = copyTable(self.si.selecting)
+		self.toscroll = true
+		self.redraw = true
+	else
+		self.cursorx = self.selectionStart[1]
+		if not self.cursorx then self.cursorx = self.si.cx end
+		--self.cursorx = self.si.cx
+		self.selecting = false
+		self.redraw = true
+		self.toscroll = true
+	end
+	self.message = ""
+	self.si = nil
+end
+
+function win:prompt(m,callback)
 	self.message = m
 	local response = ""
 	while true do
 		self:drawScreen()
 		io.write(string.format(esc.."%d;%dH",self.realTermLines+self.y,#m+#response+self.x))
 		local c = getNextByte()
-		if string.byte(c) == 13 then
+		if string.byte(c) == 13 then--enter
 			break
-		elseif string.byte(c) == 0x1b then
+		elseif callback and c == "\t" then
+			callback(self,response,c)
+		elseif string.byte(c) == 0x1b then--esc
 			response = false
 			self.message = ""
 			break
 		elseif string.byte(c) == 127 then
 			response = response:sub(1,#response-1)
 			self.message = m..response
+			if callback then callback(self,response) end
 		elseif string.byte(c) > 31 and string.byte(c) < 127 then
 			response = response..c
 			self.message = m..response
+			if callback then callback(self,response) end
 		end
 	end
 	self:drawScreen()
@@ -1271,7 +1335,7 @@ function parseInput(char)
 	local args = {}
 	local command = ""
 	local prefix = ""
-	if a == "\x1b" then
+	if a == csi then
 		prefix = getNextByte()
 		if prefix == "[" then
 			--parse till we reach something that isn't a number or ;
@@ -1373,24 +1437,11 @@ function handleKeyInput(charIn)
 				running = false
 			end
 		elseif a == ctrl("a") then--ctrl a refresh screen
-		w.redraw = true
-		w:drawScreen()
-		w:updateSyntaxHighlight()
-		elseif a == ctrl("j") then
-			local cw = currentWindow
-			for i,_ in pairs(windows) do
-				if i < currentWindow then cw = i end
-			end
-			currentWindow = cw
-		elseif a == ctrl("k") then
-			for i,_ in pairs(windows) do
-				if i > currentWindow then currentWindow = i ; break end
-			end
+			w.redraw = true
+			w:drawScreen()
+			w:updateSyntaxHighlight()
 		elseif a == ctrl("f") then
-			local searchTerm = w:prompt("search for >")
-			if searchTerm and #w.rows > 0 then
-				w:search(searchTerm)
-			end
+			w:search()
 		elseif a == ctrl("e") then
 			local com = w:prompt("enter command >")
 			if com == "vsplit" then
@@ -1451,6 +1502,7 @@ function handleKeyInput(charIn)
 				node.h = false
 				updateSize(node,w.termCols,w.realTermLines,w.x,w.y)
 			end
+			w.message = ""
 		--[[
 		elseif a == ctrl("n") then
 			currentWindow = currentWindow + 1
@@ -1504,7 +1556,7 @@ function handleKeyInput(charIn)
 					end
 				end
 			end
-		elseif a == ctrl("x") then
+		elseif a == ctrl("x") then 
 			if w.selecting then
 				--setclipboard(rows[cursory])
 				setclipboard(w:getSelectedText())
@@ -1573,11 +1625,19 @@ function handleKeyInput(charIn)
 		elseif a == ctrl("y") then
 			w:redo()
 		elseif a == ctrl("j") then
-			w.termLines = w.termLines + 1
-			w.redraw = true
+			local node = getNodeByID(tree,currentWindow)
+			if not node.offset then node.offset = 0 end
+			node.offset = node.offset + 1
+			if isLeaf(node.left) then windows[node.left .id].redraw = true end
+			if isLeaf(node.right) then windows[node.right.id].redraw = true end
+			updateSize(node)
 		elseif a == ctrl("k") then
-			w.termLines = w.termLines - 1
-			w.redraw = true
+			local node = getNodeByID(tree,currentWindow)
+			if not node.offset then node.offset = 0 end
+			node.offset = node.offset - 1
+			if isLeaf(node.left) then windows[node.left .id].redraw = true end
+			if isLeaf(node.right) then windows[node.right.id].redraw = true end
+			updateSize(node)
 		elseif a == ctrl("o") then
 			local fn = w:prompt("open file >")
 			if fn then
@@ -1645,7 +1705,7 @@ function handleKeyInput(charIn)
 					w.message = "nothing to run..."
 				end
 			end
-		elseif a == "J" or (a == "H" and args[2] and args[2] == 2) then--shift+home
+		elseif a == "J" or (a == "H" and args and args[2] == 2) then--shift+home
 			if w.selecting then
 				local fns = w:findFirstNonSeperator(w.cursory)
 				if w.cursorx == fns then
@@ -1688,11 +1748,15 @@ function handleKeyInput(charIn)
 			w:pushCommand()
 			--error(args[2])
 			local isShift = false
+			local isAlt  = false
 			local isCtrl  = false
 			if args then
 				if args[2] == 2 then isShift = true end
+				if args[2] == 3 then isAlt   = true end
 				if args[2] == 5 then isCtrl  = true end
+				if args[2] == 4 then isAlt   = true ; isShift = true end
 				if args[2] == 6 then isCtrl  = true ; isShift = true end
+				if args[2] == 7 then isCtrl  = true ; isAlt   = true end
 			end
 			
 			if not w.selecting and isShift then
@@ -1704,7 +1768,7 @@ function handleKeyInput(charIn)
 			end
 			if w.selecting then w.redraw = true end
 			if isShift then w.selecting = true end
-			if isCtrl then
+			if isCtrl and not isAlt then
 				if a == "A" then--up
 					w:moveCursor(a)
 					if isShift then w.selectionEnd = {w.cursorx,w.cursory} end 
@@ -1723,6 +1787,18 @@ function handleKeyInput(charIn)
 					w:updateRowRender(w.cursory)
 					w:drawLine(w.cursory)
 					w.toscroll = true
+				end
+			elseif isAlt then
+				if a == "D" then
+					local cw = currentWindow
+					for i,_ in pairs(windows) do
+						if i < currentWindow then cw = i end
+					end
+					currentWindow = cw
+				elseif a == "C" then
+					for i,_ in pairs(windows) do
+						if i > currentWindow then currentWindow = i ; break end
+					end
 				end
 			else
 				w:moveCursor(a)
@@ -1873,7 +1949,10 @@ function win:genLine(y)
 		if y == math.floor(self.termLines/3) and #self.rows == 0 and self.welcome then
 			local welcomestr = "Hello and welcome to ledit!"
 			str = str..fgCol(150,0,0).."~"..fgCol(255,255,255)
-			str = str..string.rep(" ",math.floor((self.termCols-#welcomestr-1)/2))..welcomestr
+			ws = string.rep(" ",math.floor((self.termCols-#welcomestr-1)/2))..welcomestr
+			str = str..ws
+			--str = str.." "..self.termCols-#str
+			str = str..string.rep(" ",self.termCols-#ws)
 		else
 			--str = str..string.rep(" ",2-#tostring(y))..y
 			str=str..bgCol(0,0,0)
@@ -2066,6 +2145,7 @@ function win:drawLines()
 end
 
 function win:drawStatusBar()
+	local node = getNodeByID(tree,self.id)
 	local str = ""
 	str = str..bgCol(0,100,0)
 	str = str..string.rep(" ",self.termCols)
@@ -2081,6 +2161,7 @@ function win:drawStatusBar()
 	str = str.." "..self.cursory.."/"..#self.rows
 	--str = str.."      "..self.x..","..self.y
 	str = str.."  id:"..self.id.."/"..#windows
+	if node then str = str.."  offset:"..node.offset end
 	
 	--undo/redo info
 	--[[
