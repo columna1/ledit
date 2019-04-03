@@ -87,7 +87,6 @@ end
 
 function insertLeft(node,nodeID)
 	if isLeaf(node) then
-		--node = newNode(node,newNod)
 		node.left = {["id"] = nodeID}
 		node.right = {["id"] = node.id}
 		node.id = nil
@@ -97,7 +96,6 @@ function insertLeft(node,nodeID)
 end
 function insertRight(node,nodeID)
 	if isLeaf(node) then
-		--newNode(newNod,node)
 		node.left = {["id"] = node.id}
 		node.right = {["id"] = nodeID}
 		node.id = nil
@@ -456,7 +454,6 @@ cMultiComment = {"/*","*/"}
 
 function win:checkFile()
 	if self.filename:sub(#self.filename-3) == ".lua" then
-		--message = "got"
 		local f = io.open(self.filename,"r")
 		local a,err = load(f:read("*a"))
 		f:close()
@@ -554,7 +551,6 @@ function setclipboard(text)
 end
 
 function restoremode(mode)
-	--io.write("\x1b[?1006l\x1b[?1002l\x1b[?1000l")
 	return os.execute(stty.." "..mode)
 end
 
@@ -645,7 +641,6 @@ function win:moveCursor(k,ammount)
 			self:setcursorx(math.min(self.cursorx+ammount,#self.rows[self.cursory]+1))
 		end
 	end
-	--io.write(updateCursor())
 	self.toscroll = true
 end
 
@@ -664,7 +659,6 @@ function win:CxtoRx(row,cx)
 	for j = 1,cx-1 do
 		local symb = row:sub(j,j)
 		if symb == "\t" then
-			--rx = rx + ((tabWidth - 1) - (rx % tabWidth))
 			rx = rx + self.tabWidth-1
 		end
 		rx = rx + 1
@@ -683,7 +677,6 @@ function win:RxtoCx(row,rx)
 	for j = 1,#row do
 		local symb = row:sub(j,j)
 		if symb == "\t" then
-			--rx = rx + ((tabWidth - 1) - (rx % tabWidth))
 			xx = xx + self.tabWidth-1
 		end
 		xx = xx + 1
@@ -724,7 +717,6 @@ end
 
 
 function win:checkHideCursor()--if our cursor if off screen, don't let it blink
-	--if cursorx < numOffset then cursorx = numOffset+1 end
 	if self.cursory > self.scroll and self.cursory < self.scroll+self.termLines+1 then
 		return esc.."?25h"
 	else
@@ -936,7 +928,6 @@ end
 
 function win:rowInsertChar(row,at,char)
 	if #self.rows == 0 then table.insert(self.rows,"") end
-	--if at > #rows[row] then at = #rows[row] end
 	local ox,oy = self.cursorx,self.cursory
 	local result = ""
 	local fp = self.rows[row]:sub(1,at-1)
@@ -1031,7 +1022,6 @@ function win:insertText(row,at,str)
 			table.insert(self.incomment,row+#lines-1,self.incomment[row+#lines-2])
 			self:updateRowRender(row+#lines-1)
 		end
-		--message = "pasted "..#lines.." lines"
 		self.cursory = self.cursory+#lines-1
 		self:setcursorx(#lines[#lines]+1)
 	elseif #lines == 1 then
@@ -1096,7 +1086,6 @@ function ctrl(symb)
 	if num > 128 then num = num - 128 end
 	if num > 64 then num = num - 64 end
 	if num > 32 then num = num - 32 end
-	--return string.char(string.byte(symb) & 0x1f)
 	return string.char(num)
 end
 
@@ -1149,7 +1138,6 @@ function win:searchCallback(querry,key)
 				self.selectionStart = {s,i}
 				self.selectionEnd = {e+1,i}
 				self.selecting = true
-				--self.toscroll = true
 				self.scroll = math.max(self.cursory-math.floor(self.termLines/2),0)
 				self.redraw = true
 				return true
@@ -1168,7 +1156,6 @@ function win:searchCallback(querry,key)
 				self.selectionStart = {s,i}
 				self.selectionEnd = {e+1,i}
 				self.selecting = true
-				--self.toscroll = true
 				self.scroll = math.max(self.cursory-math.floor(self.termLines/2),0)
 				self.redraw = true
 				return true
@@ -1211,7 +1198,6 @@ function win:search()
 	else
 		self.cursorx = self.selectionStart[1]
 		if not self.cursorx then self.cursorx = self.si.cx end
-		--self.cursorx = self.si.cx
 		self.selecting = false
 		self.redraw = true
 		self.toscroll = true
@@ -1364,19 +1350,6 @@ function parseInput(char)
 	else
 		command = a
 	end
-	--[[
-	if command == "q" then running = false ; return end
-	print("                \r\n")
-	print(prefix.." prefix                           \r")
-	print(command.." command                           \r")
-	if args then
-		print(#args.." num args                           \r")
-		for i = 1,#args do
-			print(args[i].." arg                          \r")
-		end
-	end
-	]]
-	--getNextByte()
 	if #args < 1 then args = nil end
 	if #prefix < 1 then prefix = nil end
 	if #command < 1 then command = nil end
@@ -1386,8 +1359,6 @@ end
 
 function handleKeyInput(charIn)
 	local args,prefix,a = parseInput(charIn)
-	--local w = getID(windows,currentWindow)
-	--error(w.id)
 	local w = windows[currentWindow]
 	if w.welcome then w.redraw = true end
 	w.welcome = false
@@ -1436,31 +1407,20 @@ function handleKeyInput(charIn)
 			else
 				running = false
 			end
-		elseif a == ctrl("a") then--ctrl a refresh screen
-			w.redraw = true
-			w:drawScreen()
-			w:updateSyntaxHighlight()
+		elseif a == ctrl("a") then--ctrl+a refresh screen
+			local he,wi = getScreenSize()
+			tree.width = wi
+			tree.height = he
+			tree.x = 1
+			tree.y = 0
+			w:updateRender()
+			updateSize(tree)
 		elseif a == ctrl("f") then
 			w:search()
 		elseif a == ctrl("e") then
 			local com = w:prompt("enter command >")
 			if com == "vsplit" then
 				--make the current view about half the size it is now
-				--[[
-				w.termCols = math.floor(w.termCols/2)
-				--make a new window and set it's size
-				local newWin = newWindow()
-				newWin.y = w.y
-				newWin.x = w.termCols+1
-				newWin.termCols = w.termCols
-				newWin.termLines = w.termLines
-				newWin.realTermLines = newWin.termLines+2--account for the status bars
-				newWin:openFile()
-				w.redraw = true
-				w.message = ""
-				currentWindow = #windows
-				--printTable(windows)
-				]]
 				local newWin = newWindow()
 				newWin.termCols = w.termCols
 				newWin.termLines = w.termLines
@@ -1474,21 +1434,6 @@ function handleKeyInput(charIn)
 				node.h = true
 				updateSize(node,w.termCols,w.realTermLines,w.x,w.y)
 			elseif com == "hsplit" then
-				--[[
-				--make the current view about half the size it is now
-				w.termLines = math.floor(w.termLines/2)
-				w.realTermLines = w.termLines+2
-				--make a new window and set it's size
-				local newWin = newWindow()
-				newWin.termLines = w.termLines-1
-				newWin.termCols = w.termCols
-				newWin.realTermLines = newWin.termLines+2--account for the status bars
-				newWin:openFile()
-				table.insert(windows,newWin)
-				w.redraw = true
-				w.message = ""
-				currentWindow = #windows
-				]]
 				local newWin = newWindow()
 				newWin.termCols = w.termCols
 				newWin.termLines = w.termLines
@@ -1503,39 +1448,12 @@ function handleKeyInput(charIn)
 				updateSize(node,w.termCols,w.realTermLines,w.x,w.y)
 			end
 			w.message = ""
-		--[[
-		elseif a == ctrl("n") then
-			currentWindow = currentWindow + 1
-			if currentWindow > #windows then
-				currentWindow = 1
-			end
-			if showCursor then
-				io.write(esc.."?25l")
-			else
-				io.write(esc.."?25h")
-			end
-			showCursor = not showCursor]]
-		elseif a == ctrl("w") then--close current windo
-			--hardcode to work with 2 windows, just assume
-			--[[
-			if #windows == 2  then
-				--close current window and make the other window full screen
-				table.remove(windows,currentWindow)
-				currentWindow = 1
-				w = windows[currentWindow]
-				w.x = 1
-				w.y = 0
-				w.termLines,w.termCols = getScreenSize()
-				w.realTermLines = w.termLines
-				w.termLines = w.termLines - 2
-				w.redraw = true
-			end]]
+		elseif a == ctrl("w") then--close current window
 			local numwin = 0
 			for i,_ in pairs(windows) do
 				numwin = numwin + 1
 			end
 			if numwin > 1 then
-				--error()
 				local node = getNodeByID(tree,currentWindow)
 				if node.left.id == currentWindow then
 					--for now close without prompting to save
@@ -1558,7 +1476,6 @@ function handleKeyInput(charIn)
 			end
 		elseif a == ctrl("x") then 
 			if w.selecting then
-				--setclipboard(rows[cursory])
 				setclipboard(w:getSelectedText())
 				w:deleteSelectedText()
 				w.selecting = false
@@ -1566,9 +1483,8 @@ function handleKeyInput(charIn)
 				w.dirty = true
 			end
 		elseif a == ctrl("c") then
-			--clear = not clear
+			clear = not clear
 			if w.selecting then
-				--setclipboard(rows[cursory])
 				setclipboard(w:getSelectedText())
 			end
 		elseif a == ctrl("v") then
@@ -1579,7 +1495,6 @@ function handleKeyInput(charIn)
 			local aa = getclipboard()
 			w:insertText(w.cursory,w.cursorx,aa)
 			w.redraw = true
-			--insertText(cursory,cursorx,getclipboard())
 		elseif a == ctrl("d") then
 			local row = w.cursory
 			table.insert(w.rows,row+1, w.rows[row])
@@ -1595,7 +1510,6 @@ function handleKeyInput(charIn)
 				startLog("log.txt")
 			end
 		elseif string.byte(a) == 5 and #w.rows > 0 then
-			--scroll = math.min(scroll + 1,#rows-termLines)
 			w.scroll = math.min(w.scroll + 1,#w.rows-1)
 			w.redraw = true
 		elseif a == ctrl("s") then --ctrl+s
@@ -1746,7 +1660,6 @@ function handleKeyInput(charIn)
 			end
 		elseif a == "A" or a == "B" or a == "C" or a == "D" then--arrow keys and ctrl/shift
 			w:pushCommand()
-			--error(args[2])
 			local isShift = false
 			local isAlt  = false
 			local isCtrl  = false
@@ -1839,12 +1752,12 @@ function handleKeyInput(charIn)
 		local isMeta = false
 		local isShift = false
 		--if arg1 >= 256 then sf = true ; arg1 = arg1 - 256 end
-		if args[1] >= 128 then ot = true ; args[1] = args[1] - 128 end
-		if args[1] >= 64 then ex = true ; args[1] = args[1] - 64 end
-		if args[1] >= 32 then isDrag = true ; args[1] = args[1] - 32 end
+		if args[1] >= 128 then ot       = true ; args[1] = args[1] - 128 end
+		if args[1] >= 64 then ex        = true ; args[1] = args[1] - 64 end
+		if args[1] >= 32 then isDrag    = true ; args[1] = args[1] - 32 end
 		if args[1] >= 16 then isControl = true ; args[1] = args[1] - 16 end
-		if args[1] >= 8 then isMeta = true ; args[1] = args[1] - 8 end
-		if args[1] >= 4 then isShift = true ; args[1] = args[1] - 4 end
+		if args[1] >= 8 then isMeta     = true ; args[1] = args[1] - 8 end
+		if args[1] >= 4 then isShift    = true ; args[1] = args[1] - 4 end
 		
 		if ex then
 			local di = true
@@ -1873,7 +1786,6 @@ function handleKeyInput(charIn)
 			if args[1] == 0 then--left click
 				if a == "M" then--mouse pressed
 					w:pushCommand()
-					--printLog("mouse pressed at "..arg2..","..arg3)
 					local di = true
 					if not (args[2] > w.x and args[2] <= w.x+w.termCols and args[3] > w.y and args[3] <= w.y+w.termLines) then
 						di = false
@@ -1925,10 +1837,6 @@ function fgCol(r,g,b)
 end
 
 function clearScreen(buff)
-	--clear screen
-	--write(esc.."2J",buff)
-	--move cursor to top left
-	--write(esc.."H",buff)
 	return esc.."2J"..esc.."H"
 end
 
@@ -1942,19 +1850,15 @@ end
 function win:genLine(y)
 	local str = ""
 	local bg = bgCol(40,40,40)--TODO make this configurable
-	--str = str..bg..esc.."K"
 	if y+self.scroll > #self.rrows then
-		--str = str..string.rep(" ",2-#tostring(i))..i..esc.."K"..(i == lin and "" or endl)
 		--line number
 		if y == math.floor(self.termLines/3) and #self.rows == 0 and self.welcome then
 			local welcomestr = "Hello and welcome to ledit!"
 			str = str..fgCol(150,0,0).."~"..fgCol(255,255,255)
 			ws = string.rep(" ",math.floor((self.termCols-#welcomestr-1)/2))..welcomestr
 			str = str..ws
-			--str = str.." "..self.termCols-#str
 			str = str..string.rep(" ",self.termCols-#ws)
 		else
-			--str = str..string.rep(" ",2-#tostring(y))..y
 			str=str..bgCol(0,0,0)
 			str=str..fgCol(150,0,0).."~"..fgCol(255,255,255)
 			str=str..string.rep(" ",self.termCols-1)
@@ -2000,7 +1904,6 @@ function win:genLine(y)
 			local f,e = 0,0
 			if self.selectionStart[1] > self.selectionEnd[1] then
 				f,e = self.selectionEnd[1],self.selectionStart[1] 
-				--cursorRx = cursorRx + 1
 			else 
 				f,e = self.selectionStart[1],self.selectionEnd[1] 
 				self.cursorRx = self.cursorRx - 1
@@ -2107,10 +2010,6 @@ function win:genLine(y)
 				str = str..s
 			end
 		end
-		--selection
-		--if selecting and y >= selectionStart[2] and y <= selectionEnd[2] then
-		--	  str = str..bgCol(200,200,200)
-		--end
 		
 		if self.tmux then 
 			str = str..bgCol(40,40,40)..string.rep(" ",self.termCols-self.numOffset-#li+add)
@@ -2118,11 +2017,8 @@ function win:genLine(y)
 			str = str..bg..esc.."K"
 		end
 		
-		--str = str..li
 		str = str..fgCol(255,255,255)
 	end
-	--if y ~= termLines then	str = str.."\r\n" end
-	--str = str.."\r\n"
 	return str
 end
 
@@ -2150,7 +2046,6 @@ function win:drawStatusBar()
 	str = str..bgCol(0,100,0)
 	str = str..string.rep(" ",self.termCols)
 	str = str..setCursor(self.x,self.termLines+self.y+1)
-	--write(esc.."K",ab)
 	str = str..self.filename
 	str = str..(self.dirty and "*" or "")
 	str = str..(self.lineEnding == "\n" and "  unix \\n" or "  DOS \\r\\n")
@@ -2206,8 +2101,6 @@ function win:drawScreen()
 		str = str..self:drawLines()
 		--return cursor to where it should be
 		str = str..self:updateCursor()
-		--un-hide the cursor
-		--write(esc.."?25h",ab)
 		io.write(str)
 		self.redraw = false
 	end
@@ -2218,8 +2111,6 @@ function win:drawScreen()
 	str = str..self:updateCursor()
 	str = str..self:checkHideCursor()
 	io.write(str)
-	--io.write(checkHideCursor())
-	--io.write(esc.."?25h")
 end
 
 function win:saveFile()
@@ -2242,15 +2133,11 @@ function win:saveFile()
 end
 
 function win:openFile()--opens a file
-	--local line = "Hello, world!"
-	--table.insert(rows,line)
 	self.cursorx,self.cursory = 1,1
 	self.scroll,self.colScroll = 0,0
 	self.rows = {}
 	self.rrows = {}
 	self.crows = {}
-	--for l in io.lines("testfile") do
-	--for l in io.lines("ledit.lua") do
 	if #self.filename > 0 then
 		local fi = io.open(self.filename,"r")
 		if fi then
@@ -2261,7 +2148,6 @@ function win:openFile()--opens a file
 					if s then self.lineEnding = "\r\n"
 					else self.lineEnding = "\n" end
 				end
-				--local li = l:gsub("\t",string.rep(" ",tabWidth))
 				local li = l:gsub("\r","")
 				table.insert(self.rows,li)
 			end
@@ -2394,29 +2280,6 @@ clear = true
 tree = {}
 tree.id = 1
 
---[[
-function renderTree(tree)--goes through the tree and renders each window if needed
-	if isLeaf(tree) then
-		if tree.id == currentWindow or tree.redraw then
-			stat,erro = pcall(tree.drawScreen,tree)
-			if not stat then
-				line = 4
-				return false
-			end
-		end
-		return true
-	else
-		if renderTree(tree.left) then
-			if renderTree(tree.right) then
-				return true
-			end
-			return false
-		end
-		return false
-	end
-end
-]]
-
 function main()
 	mode,err,msg = savemode()
 	local line = 0
@@ -2428,8 +2291,6 @@ function main()
 		w.x = 1
 		th,tw = getScreenSize()
 		w.termLines,w.termCols = th,tw
-		--w.termCols = math.floor(w.termCols/2)
-		--w.termLines = math.floor(w.termLines/2)
 		w.realTermLines = w.termLines
 		w.termLines = w.termLines - 2
 		stat = true
@@ -2438,26 +2299,6 @@ function main()
 			line = 1
 			goto END
 		end
-		
-		
-		--[[
-		for i = 1,#windows do
-			if i ~= currentWindow then
-				stat,erro = pcall(windows[i].drawScreen,windows[i])
-				if not stat then
-					line = 2
-					goto END
-				end
-			end
-		end
-		--render the active window last so that the cursor is at the right place
-		--and if there are any overlaps it draws on top
-		stat,erro = pcall(windows[currentWindow].drawScreen,windows[currentWindow])
-		if not stat then
-			line = 2
-			goto END
-		end
-		]]
 		
 		w:drawScreen()
 		--renderTree(windows)
@@ -2469,23 +2310,16 @@ function main()
 			end
 
 			if clear then
-				--if not renderTree(windows) then
-				--	break
-				--end
 				for i,_ in pairs(windows) do
 					if (i == currentWindow or windows[i].redraw) and i ~= currentWindow then
 						stat,erro = pcall(windows[i].drawScreen,windows[i])
-						--w:drawScreen()
 						if not stat then
 							line = 4
 							break
 						end
 					end
 				end
-				--print("window")
-				--print(currentWindow,#windows)
 				stat,erro = pcall(windows[currentWindow].drawScreen,windows[currentWindow])
-				--w:drawScreen()
 				if not stat then
 					line = 4
 					break
