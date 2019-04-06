@@ -7,13 +7,61 @@
 	
 	if command stty isn't found, find your equivilant for your terminal and replace the "stty = "stty"" with your own version
 	
+	
+	features:
+		keeps indentation
+		syntax highlighting
+		lua syntax error highlighting (on save)
+		familiar key bindings
+		selections
+		copy/paste*
+		undo/redo
+		mouse support
+		no lua library dependencies*
+		window/pane system
+			tiling tree system
+		
+	*depends on some linux programs for some features (such as xsel)
+	
+	keybinds:
+		shift+tab - remove one level of indention on selected line(s)
+		shift+arrow keys - selection
+		arrow keys - move cursor
+		ctrl+w - close window
+		ctrl+j/ctrl+k - expand current window(based on tree order)
+		ctrl+left/ctrl_right - move word at a time
+		ctrl+x - cut
+		ctrl+c - copy
+		ctrl+v - paste
+		ctrl+z - undo
+		ctrl+y - redo
+		ctrl+s - save
+		ctrl+o - open file
+		ctrl+f - find
+			tab - while finding, go to next occurance
+		ctrl+e - command prompt
+			hsplit - split the window in half horisontall
+			vsplit - split vertically
+		ctrl+a - re-render, this is to fix highlighting issues and issues with terminal resizing
+		ctrl+q - quit
+		ctrl+d - duplicate line
+		
+	
 	todo:
+	organize code!!
+	make ctrl+q close only if all files have been saved
 	make windows that have the same file open use the same text buffers (buffer sharing)
+		to implement look at all windows open and see if the filename matches
+		add new window variable link, this will tell the render function to render all windows with matching buffer
+		just make the new window's buffer the old window's buffer (tables are reference, all should be fine)
+		think about what happens then the original buffer's window is closed!!
 	ctrl+backspace/ctrl+delete
+	tab completion of file name when opening files( will probably require to run ls or something and parse that)
+		environment stuff like ~/?
 	collapsable blocks? (code folding)
 	add command system done(ish)
 		change configuration on the fly
-		make/resize panes
+		make/resize panes (with commands)
 	make shift+tab slightly smarter
 	config?
 	file tabs?
@@ -21,7 +69,7 @@
 	stream file (read only what's needed from the file, this allows opening of large files without slow down)
 	plugins???
 	
-	--cutting or delection a section doesn't update the multi-comment table correctly?
+	--cutting or deletion a section doesn't update the multi-comment table correctly?
 	
 	goals:
 		should be fast in just about any terminal
@@ -1939,8 +1987,8 @@ function win:genLine(y)
 			li = li:sub(self.colScroll+1)
 			ci = ci:sub(self.colScroll+1)
 		end
-		if #li+self.numOffset > self.termCols then li = li:sub(1,self.termCols-self.numOffset) end
-		if #li+self.numOffset > self.termCols then ci = ci:sub(1,self.termCols-self.numOffset) end
+		if #li+self.numOffset > self.termCols then li = li:sub(1,self.termCols-self.numOffset)..">" end
+		if #li+self.numOffset > self.termCols then ci = ci:sub(1,self.termCols-self.numOffset).."9" end
 		local isselecting = false
 		local add = 1
 
@@ -2284,10 +2332,11 @@ function newWindow()--sets defaults
 		{174,129,255},--number 2
 		{230,219,116},--string 3
 		{117,113,093},--comment 4
-		{249,038,114},--keyword 5
+		{249, 38,114},--keyword 5
 		{102,217,239},--builtins 6
 		{ 40, 40, 40},--background 7
-		{253,151, 31}--"function arguments" 8
+		{253,151, 31},--"function arguments" 8
+		{ 21,232, 13}--green for x scroll notification 9
 	}
 	self.cleanUndo = 0
 	self.undoStack = {}
