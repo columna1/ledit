@@ -15,7 +15,6 @@
 		change configuration on the fly
 		make/resize panes
 	make shift+tab slightly smarter
-	make shift+tab work with undo/redo in a dignified manner
 	config?
 	file tabs?
 	better language definition?
@@ -258,19 +257,41 @@ function sleep(n)
 	while clock() - t0 <= n do end
 end
 
-function win:pushCommand()
+function win:pushCommandPart()
 	--if not in a command then just return
 	if self.currentCommand == -1 then
 		return
 	end
-	self.redoStack = {}
-	--push to stack
-	table.insert(self.undoStack,{self.currentCommand,self.commandPos,self.commandData})
+	if not self.commandParts then self.commandParts = {} end
+	table.insert(self.commandParts,{self.currentCommand,copyTable(self.commandPos),self.commandData})
 	--reset current command variables
 	self.currentCommand = -1
 	self.commandCount = 0
 	self.commandPos = {0,0}
 	self.commandData = ""
+end
+
+function win:pushCommand()
+	--if not in a command then just return
+	if self.currentCommand == -1 and not self.commandParts then
+		return
+	end
+	self.redoStack = {}
+	if self.commandParts then
+		if self.currentCommand ~= -1 then
+			self:pushCommandPart()
+		end
+		table.insert(self.undoStack,{copyTable(self.commandParts)})
+		self.commandParts = nil
+	else
+		--push to stack
+		table.insert(self.undoStack,{self.currentCommand,self.commandPos,self.commandData})
+		--reset current command variables
+		self.currentCommand = -1
+		self.commandCount = 0
+		self.commandPos = {0,0}
+		self.commandData = ""
+	end
 end
 
 function win:undo(com)
@@ -284,6 +305,17 @@ function win:undo(com)
 		comm = com
 	end
 	--undo
+	if type(comm[1]) == "table" then
+		for i = 1,#comm[1] do
+			self:undo(comm[1][i])
+		end
+		--TODO: probably need to reverse the table here for some situations (like multi-cursor)
+		if not com then table.insert(self.redoStack,comm) end
+		self.currentCommand = -1
+		if #self.undoStack == self.cleanUndo then self.dirty = false end
+		return
+	end
+	
 	if comm[1] == 1 then--text add command,
 		for i = 1,#comm[3] do
 			self:rowRemoveChar(comm[2][2],comm[2][1]+1)
@@ -928,7 +960,6 @@ end
 
 function win:rowInsertChar(row,at,char)
 	if #self.rows == 0 then table.insert(self.rows,"") end
-	local ox,oy = self.cursorx,self.cursory
 	local result = ""
 	local fp = self.rows[row]:sub(1,at-1)
 	local lp = self.rows[row]:sub(at)
@@ -942,7 +973,7 @@ function win:rowInsertChar(row,at,char)
 	self:drawLine(self.cursory)
 	
 	--add to undo
-	self:addTextCommand(oy,ox,char)
+	self:addTextCommand(row,at,char)
 end
 
 function getIndent(str)
@@ -961,8 +992,7 @@ function win:insertRow(row,at,noIndent)
 		table.insert(self.rrows,"")
 		table.insert(self.crows,"")
 		table.insert(self.incomment,false)
-	end	
-	local ox,oy = self.cursorx,self.cursory
+	end
 	local nr = self.rows[row]:sub(at)
 	local ind = ""
 	if not noIndent then
@@ -987,7 +1017,7 @@ function win:insertRow(row,at,noIndent)
 	self.redraw = true
 	
 	--undo
-	self:addTextCommand(oy,ox,"\n"..ind)
+	self:addTextCommand(row,at,"\n"..ind)
 end
 
 function win:insertText(row,at,str)
@@ -995,7 +1025,6 @@ function win:insertText(row,at,str)
 	self:pushCommand()
 	
 	if #self.rows == 0 then table.insert(self.rows,"") end
-	local ox,oy = self.cursorx,self.cursory
 	--first split text into lines
 	local lines = str:split("\n")
 	for i = 1,#lines do
@@ -1039,7 +1068,7 @@ function win:insertText(row,at,str)
 	self.quitTimes = 0
 	self.redraw = true
 	
-	self:addTextCommand(oy,ox,str,#str)
+	self:addTextCommand(row,at,str,#str)
 	self:pushCommand()
 end
 
@@ -1386,6 +1415,7 @@ function handleKeyInput(charIn)
 				if fl > ll then ll,fl = fl,ll end
 				for i = fl,ll do
 					w:rowInsertChar(i,1,"\t")
+					w:pushCommandPart()
 				end
 				w.redraw = true
 			else
@@ -1394,9 +1424,9 @@ function handleKeyInput(charIn)
 		elseif string.byte(a) == 13 then --enter pressed
 			w:insertRow(w.cursory,w.cursorx)
 			w.dirty = true
-		elseif a == ctrl("p") then--ctrl+p --print tree
-			print()
-			printTable(tree)
+		elseif a == ctrl("p") then--ctrl+p --print undoStack
+			print("")
+			printTable(w.undoStack)
 		elseif a == ctrl("q") then--ctrl+q quit
 			if w.dirty then
 				w.message = "Changes haven't been saved, press ctrl+q "..w.quitConfTimes-w.quitTimes.." more times to quit without saving" 
@@ -1415,6 +1445,29 @@ function handleKeyInput(charIn)
 			tree.y = 0
 			w:updateRender()
 			updateSize(tree)
+		elseif a == ctrl("r") then
+			--ghetto search and replace
+			local function esc(x)
+			   return (x:gsub('%%', '%%%%')
+			            :gsub('^%^', '%%^')
+			            :gsub('%$$', '%%$')
+			            :gsub('%(', '%%(')
+			            :gsub('%)', '%%)')
+			            :gsub('%.', '%%.')
+			            :gsub('%[', '%%[')
+			            :gsub('%]', '%%]')
+			            :gsub('%*', '%%*')
+			            :gsub('%+', '%%+')
+			            :gsub('%-', '%%-')
+			            :gsub('%?', '%%?'))
+			end
+			local search = w:prompt("replace: ")
+			local replace = w:prompt("with: ")
+			for i = 1,#w.rows do
+				w.rows[i] = w.rows[i]:gsub(esc(search),replace)
+			end
+			w:updateRender()
+			w.redraw = true
 		elseif a == ctrl("f") then
 			w:search()
 		elseif a == ctrl("e") then
@@ -1483,7 +1536,6 @@ function handleKeyInput(charIn)
 				w.dirty = true
 			end
 		elseif a == ctrl("c") then
-			clear = not clear
 			if w.selecting then
 				setclipboard(w:getSelectedText())
 			end
@@ -1723,13 +1775,14 @@ function handleKeyInput(charIn)
 				if fl > ll then ll,fl = fl,ll end
 				for i = fl,ll do
 					if w.rows[i]:sub(1,1) == "\t" or w.rows[i]:sub(1,1) == " " then
-						w.rows[i] = w.rows[i]:sub(2)
+						w:rowRemoveChar(i,2)
+						w:pushCommandPart()
 						w:updateRowRender(i)
 					end
 				end	
 			else
 				if w.rows[w.cursory]:sub(1,1) == "\t" or w.rows[i]:sub(1,1) == " " then
-					w.rows[w.cursory] = w.rows[w.cursory]:sub(2)
+					w:rowRemoveChar(w.cursory,2)
 					w:setcursorx(w.cursorx-1)
 					w:updateRowRender(w.cursory)
 							w.toscroll = true
@@ -1857,7 +1910,7 @@ function win:genLine(y)
 			str = str..fgCol(150,0,0).."~"..fgCol(255,255,255)
 			ws = string.rep(" ",math.floor((self.termCols-#welcomestr-1)/2))..welcomestr
 			str = str..ws
-			str = str..string.rep(" ",self.termCols-#ws)
+			str = str..string.rep(" ",self.termCols-#ws-1)
 		else
 			str=str..bgCol(0,0,0)
 			str=str..fgCol(150,0,0).."~"..fgCol(255,255,255)
