@@ -49,6 +49,8 @@
 	
 	todo:
 	organize code!!
+	support http://www.leonerd.org.uk/hacks/fixterms/
+	colorscheme for teminals that don't support 24bit color
 	make ctrl+q close only if all files have been saved
 	make windows that have the same file open use the same text buffers (buffer sharing)
 		to implement look at all windows open and see if the filename matches
@@ -58,6 +60,7 @@
 	ctrl+backspace/ctrl+delete
 	tab completion of file name when opening files( will probably require to run ls or something and parse that)
 		environment stuff like ~/?
+	UI elements like scroll bars/resize with mouse box
 	collapsable blocks? (code folding)
 	add command system done(ish)
 		change configuration on the fly
@@ -101,6 +104,8 @@ function printTable(tabl, wid)
 	end 
 end
 
+--config
+
 stty = "stty"
 
 csi = "\x1b"
@@ -110,6 +115,82 @@ endl = "\r\n"
 
 clipboard = ""
 carefulClipBoard = false
+
+--[[
+[0] = {},--background
+		  {},--foreground 1
+		  {},--number/self 2
+		  {},--string 3
+		  {},--comment 4
+		  {},--keyword 5
+		  {},--builtins 6
+		  {},--background 7
+		  {},--"function arguments" 8
+		  {},--green for x scroll notification 9
+		  {},--current line 10
+		  {},--line number bg 11]]
+
+
+themes = {
+["monokai"] = {
+	[0] = { 40, 40, 40},--background
+		  {255,255,255},--foreground 1
+		  {174,129,255},--number/self 2
+		  {230,219,116},--string 3
+		  {117,113, 93},--comment 4
+		  {249, 38,114},--keyword 5
+		  {102,217,239},--builtins 6
+		  { 40, 40, 40},--background 7
+		  {253,151, 31},--"function arguments" 8
+		  { 21,232, 13},--green for x scroll notification 9
+		  { 50, 50, 50},--current line 10
+		  { 60, 60, 60},--line number bg 11
+	},
+["tomorrowNight"] = {
+	[0] = { 29, 31, 33},--background
+		  {197,200,198},--foreground 1
+		  {222,147, 95},--number/self 2
+		  {181,189,104},--string 3
+		  {150,152,150},--comment 4
+		  {195,151,216},--keyword 5
+		  {138,190,183},--builtins 6
+		  { 29, 31, 33},--background 7
+		  {},--"function arguments" 8
+		  {181,189,104},--green for x scroll notification 9
+		  { 40, 42, 46},--current line 10
+		  { 55, 59, 65},--line number bg 11
+	},
+["tomorrowNightBright"] = {
+	[0] = {  0,  0,  0},--background
+		  {234,234,234},--foreground 1
+		  {231,140, 69},--number/self 2
+		  {231,197, 71},--string 3
+		  {150,152,150},--comment 4
+		  {195,151,216},--keyword 5
+		  {112,192,177},--builtins 6
+		  {  0,  0,  0},--background 7
+		  {},--"function arguments" 8
+		  {185,202, 74},--green for x scroll notification 9
+		  { 42, 42, 42},--current line 10
+		  { 66, 66, 66},--line number bg 11
+	},
+["gruvbox"] = {
+	[0] = { 40, 40, 40},--background
+		  {235,219,178},--foreground 1
+		  {211,134,155},--number/self 2
+		  {184,187, 38},--string 3
+		  {146,131,116},--comment 4
+		  {251, 73, 52},--keyword 5
+		  {250,189, 47},--builtins 6
+		  { 40, 40, 40},--background 7
+		  {},--"function arguments" 8
+		  {184,187, 38},--green for x scroll notification 9
+		  { 60, 56, 54},--current line 10
+		  { 80, 73, 69},--line number bg 1
+	}
+}
+
+--end of config
 
 --window class
 win = {}
@@ -700,6 +781,8 @@ function win:moveCursor(k,ammount)
 		if self.cursorx > #self.rows[self.cursory] then
 			self.cursorx = #self.rows[self.cursory]+1
 		end
+		if self.cursory+ammount > self.scroll and self.cursory+ammount <= self.scroll+self.termLines then self:drawLine(self.cursory+ammount) end
+		if self.cursory > self.scroll and self.cursory <= self.scroll+self.termLines then self:drawLine(self.cursory) end
 	elseif k == "D" then--left
 		if self.cursorx == 1 and self.cursory > 1 and ammount == 1 then
 			self.cursory = self.cursory - 1
@@ -713,6 +796,8 @@ function win:moveCursor(k,ammount)
 		if self.cursorx > #self.rows[self.cursory] then
 			self.cursorx = #self.rows[self.cursory]+1
 		end
+		if self.cursory-ammount > self.scroll and self.cursory-ammount <= self.scroll+self.termLines then self:drawLine(self.cursory-ammount) end
+		if self.cursory > self.scroll and self.cursory <= self.scroll+self.termLines then self:drawLine(self.cursory) end
 	elseif k == "C" then--right
 		if self.cursorx == #self.rows[self.cursory]+1 and self.cursory ~= #self.rows and ammount == 1 then
 			self.cursory = self.cursory + 1
@@ -1473,8 +1558,16 @@ function handleKeyInput(charIn)
 			w:insertRow(w.cursory,w.cursorx)
 			w.dirty = true
 		elseif a == ctrl("p") then--ctrl+p --print undoStack
-			print("")
-			printTable(w.undoStack)
+			a = w:prompt("enter color> ")
+			--a = getclipboard()
+			if a then
+				local r,g,b = a:sub(1,2),a:sub(3,4),a:sub(5,6)
+				r,g,b = tonumber(r,16),tonumber(g,16),tonumber(b,16)
+				w:insertText(w.cursory,w.cursorx,string.rep(" ",3-#tostring(r))..tostring(r)..","..string.rep(" ",3-#tostring(g))..tostring(g)..","..string.rep(" ",3-#tostring(b))..tostring(b))
+				w.redraw = true
+			end
+			--print("")
+			--printTable(w.undoStack)
 		elseif a == ctrl("q") then--ctrl+q quit
 			if w.dirty then
 				w.message = "Changes haven't been saved, press ctrl+q "..w.quitConfTimes-w.quitTimes.." more times to quit without saving" 
@@ -1533,7 +1626,8 @@ function handleKeyInput(charIn)
 				currentWindow = id
 				local node = getNodeByID(tree,currentWindow)
 				node.h = true
-				updateSize(node,w.termCols,w.realTermLines,w.x,w.y)
+				updateSize(node,w.termCols,w.realTermLines,w.x,w.y)	
+				w.message = ""
 			elseif com == "hsplit" then
 				local newWin = newWindow()
 				newWin.termCols = w.termCols
@@ -1547,8 +1641,28 @@ function handleKeyInput(charIn)
 				local node = getNodeByID(tree,currentWindow)
 				node.h = false
 				updateSize(node,w.termCols,w.realTermLines,w.x,w.y)
+				w.message = ""
+			elseif com then
+				local comm = com:split(" ")
+				if comm[1] == "exec" then
+					local code = com:sub(5)
+					local cd,err = load(code)
+					if not cd then
+						w.message = error
+					else
+						cd()
+						w.message = ""
+					end
+				elseif comm[1] == "theme" then
+					if themes[comm[2]] then
+						w.colors = themes[comm[2]]
+						w.message = "theme set to "..comm[2]
+						w.redraw = true
+					else
+						w.message = "could not find theme "..comm[2]
+					end
+				end
 			end
-			w.message = ""
 		elseif a == ctrl("w") then--close current window
 			local numwin = 0
 			for i,_ in pairs(windows) do
@@ -1901,7 +2015,10 @@ function handleKeyInput(charIn)
 					end
 					if #w.rows > 0 and di then
 						local cx,cy = w.cursorx,w.cursory
+						local lcy = w.cursory
 						w.cursory = math.min(w.scroll+args[3]-w.y,#w.rows)
+						if lcy > w.scroll and lcy < w.scroll+w.termLines then w:drawLine(lcy) end
+						w:drawLine(w.cursory)
 						w:setcursorx(math.min(#w.rows[w.cursory]+1,w:RxtoCx(w.cursory,args[2]-w.x+1)+w.colScroll))
 						if args[2] <= w.numOffset then w.cursorx = 1 end
 						w.toscroll = true
@@ -1927,13 +2044,23 @@ end
 
 function win:syntaxColor(c)
 	if type(c) ~= "number" then c = tonumber(c) end
-	return fgCol(self.colors[c][1],self.colors[c][2],self.colors[c][3])
+	return fgCol(self.colors[c])
 end
 
 function bgCol(r,g,b)
+	if type(r) == "table" then
+		b = r[3]
+		g = r[2]
+		r = r[1]
+	end
 	return esc.."48;2;"..r..";"..g..";"..b.."m"
 end
 function fgCol(r,g,b)
+	if type(r) == "table" then
+		b = r[3]
+		g = r[2]
+		r = r[1]
+	end
 	return esc.."38;2;"..r..";"..g..";"..b.."m"
 end
 
@@ -1950,7 +2077,8 @@ end
 
 function win:genLine(y)
 	local str = ""
-	local bg = bgCol(40,40,40)--TODO make this configurable
+	local bg = bgCol(self.colors[0])
+	if y+self.scroll == self.cursory then bg = bgCol(self.colors[10]) end
 	if y+self.scroll > #self.rrows then
 		--line number
 		if y == math.floor(self.termLines/3) and #self.rows == 0 and self.welcome then
@@ -1972,7 +2100,8 @@ function win:genLine(y)
 		local len = #li
 
 		--numbers
-		str = str..bgCol(60,60,60)
+		str = str..bgCol(self.colors[11])
+		str = str..fgCol(self.colors[1] )
 		str = str..string.rep(" ",self.numOffset-2-#tostring(line))..line.." "
 		if line == self.errline[1] then
 			bg = bgCol(120,0,0)
@@ -2113,7 +2242,7 @@ function win:genLine(y)
 		end
 		
 		if self.tmux then 
-			str = str..bgCol(40,40,40)..string.rep(" ",self.termCols-self.numOffset-#li+add)
+			str = str..bg..string.rep(" ",self.termCols-self.numOffset-#li+add)
 		else
 			str = str..bg..esc.."K"
 		end
@@ -2326,18 +2455,9 @@ function newWindow()--sets defaults
 	
 	self.errline = {-1,""}
 	
-	self.colors = {
-	[0] = {255,255,255},
-		{255,255,255},--none 1
-		{174,129,255},--number 2
-		{230,219,116},--string 3
-		{117,113,093},--comment 4
-		{249, 38,114},--keyword 5
-		{102,217,239},--builtins 6
-		{ 40, 40, 40},--background 7
-		{253,151, 31},--"function arguments" 8
-		{ 21,232, 13}--green for x scroll notification 9
-	}
+	self.colors = themes.monokai
+	--self.colors = themes.tomorrowNight
+	--self.colors = themes.tomorrowNightBright
 	self.cleanUndo = 0
 	self.undoStack = {}
 	self.redoStack = {}
