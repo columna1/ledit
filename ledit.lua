@@ -18,6 +18,7 @@
 		undo/redo
 		mouse support
 		no lua library dependencies*
+		themes
 		window/pane system
 			tiling tree system
 		
@@ -42,6 +43,7 @@
 		ctrl+e - command prompt
 			hsplit - split the window in half horisontall
 			vsplit - split vertically
+			theme [theme] - set the theme
 		ctrl+a - re-render, this is to fix highlighting issues and issues with terminal resizing
 		ctrl+q - quit
 		ctrl+d - duplicate line
@@ -57,6 +59,11 @@
 		add new window variable link, this will tell the render function to render all windows with matching buffer
 		just make the new window's buffer the old window's buffer (tables are reference, all should be fine)
 		think about what happens then the original buffer's window is closed!!
+						or
+		keep a list of "buffers" aka the lines,syntax highlight, and comment statuses of lines
+		one entry for each file
+		make each window reference this buffer, make buffers keep a list of windows it's connected to
+		so that it can redraw windows windows accordingly
 	ctrl+backspace/ctrl+delete
 	tab completion of file name when opening files( will probably require to run ls or something and parse that)
 		environment stuff like ~/?
@@ -116,8 +123,9 @@ endl = "\r\n"
 clipboard = ""
 carefulClipBoard = false
 
---[[
-[0] = {},--background
+--[[template
+[""] = {
+	[0] = {},--background
 		  {},--foreground 1
 		  {},--number/self 2
 		  {},--string 3
@@ -128,7 +136,9 @@ carefulClipBoard = false
 		  {},--"function arguments" 8
 		  {},--green for x scroll notification 9
 		  {},--current line 10
-		  {},--line number bg 11]]
+		  {},--line number bg 11
+	}
+]]
 
 
 themes = {
@@ -2017,7 +2027,7 @@ function handleKeyInput(charIn)
 						local cx,cy = w.cursorx,w.cursory
 						local lcy = w.cursory
 						w.cursory = math.min(w.scroll+args[3]-w.y,#w.rows)
-						if lcy > w.scroll and lcy < w.scroll+w.termLines then w:drawLine(lcy) end
+						if lcy > w.scroll and lcy <= w.scroll+w.termLines then w:drawLine(lcy) end
 						w:drawLine(w.cursory)
 						w:setcursorx(math.min(#w.rows[w.cursory]+1,w:RxtoCx(w.cursory,args[2]-w.x+1)+w.colScroll))
 						if args[2] <= w.numOffset then w.cursorx = 1 end
