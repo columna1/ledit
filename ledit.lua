@@ -19,6 +19,7 @@
 		mouse support
 		no lua library dependencies*
 		themes
+		one button run of project
 		window/pane system
 			tiling tree system
 		
@@ -47,6 +48,7 @@
 		ctrl+a - re-render, this is to fix highlighting issues and issues with terminal resizing
 		ctrl+q - quit
 		ctrl+d - duplicate line
+		F6/F7 - run run.sh in current dir if it exists
 		
 	
 	todo:
@@ -1567,19 +1569,15 @@ function handleKeyInput(charIn)
 		elseif string.byte(a) == 13 then --enter pressed
 			w:insertRow(w.cursory,w.cursorx)
 			w.dirty = true
-		elseif a == ctrl("p") then--ctrl+p --print undoStack
-			a = w:prompt("enter color> ")
-			--a = getclipboard()
-			if a then
-				local r,g,b = a:sub(1,2),a:sub(3,4),a:sub(5,6)
-				r,g,b = tonumber(r,16),tonumber(g,16),tonumber(b,16)
-				w:insertText(w.cursory,w.cursorx,string.rep(" ",3-#tostring(r))..tostring(r)..","..string.rep(" ",3-#tostring(g))..tostring(g)..","..string.rep(" ",3-#tostring(b))..tostring(b))
-				w.redraw = true
-			end
-			--print("")
-			--printTable(w.undoStack)
+		elseif a == ctrl("p") then--ctrl+p
+			--io.write(esc.."1;"..w.termLines.."r")
+			--io.write(esc.."D")
 		elseif a == ctrl("q") then--ctrl+q quit
-			if w.dirty then
+			local dirty = false
+			for i,k in pairs(windows) do
+				if windows[i].dirty then dirty = true ; break end
+			end
+			if dirty then
 				w.message = "Changes haven't been saved, press ctrl+q "..w.quitConfTimes-w.quitTimes.." more times to quit without saving" 
 				if w.quitTimes == w.quitConfTimes then
 					running = false
@@ -1678,34 +1676,31 @@ function handleKeyInput(charIn)
 			for i,_ in pairs(windows) do
 				numwin = numwin + 1
 			end
-			if numwin > 1 then
-				local node = getNodeByID(tree,currentWindow)
-				if node.left.id == currentWindow then
-					--for now close without prompting to save
-					windows[currentWindow] = nil
-					currentWindow = node.right.id
-					removeLeft(node)
-					updateSize(tree,tw,th,1,0)
-				elseif node.right.id == currentWindow then
-					windows[currentWindow] = nil
-					currentWindow = node.left.id
-					removeRight(node)
-					updateSize(tree,tw,th,1,0)
-				end
-				if currentWindow == nil then
-					for i,_ in pairs(windows) do
-						currentWindow = i
-						break
+			if not w.dirty or w.quitTimes >= 1 then
+				if numwin > 1 then
+					local node = getNodeByID(tree,currentWindow)
+					if node.left.id == currentWindow then
+						--for now close without prompting to save
+						windows[currentWindow] = nil
+						currentWindow = node.right.id
+						removeLeft(node)
+						updateSize(tree,tw,th,1,0)
+					elseif node.right.id == currentWindow then
+						windows[currentWindow] = nil
+						currentWindow = node.left.id
+						removeRight(node)
+						updateSize(tree,tw,th,1,0)
+					end
+					if currentWindow == nil then
+						for i,_ in pairs(windows) do
+							currentWindow = i
+							break
+						end
 					end
 				end
-			end
-		elseif a == ctrl("x") then 
-			if w.selecting then
-				setclipboard(w:getSelectedText())
-				w:deleteSelectedText()
-				w.selecting = false
-				w.redraw = true
-				w.dirty = true
+			elseif numwin > 1 then 
+				w.message = "document not saved, please save then exit or press again to close anyway"
+				w.quitTimes = w.quitTimes + 1
 			end
 		elseif a == ctrl("c") then
 			if w.selecting then
