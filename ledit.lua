@@ -1,3 +1,4 @@
+
 --[[
 	clipboard support is disabled with luajit/lua5.1 because of sad popen behaviour
 	should work with lua 5.x+
@@ -614,7 +615,7 @@ luaMultiComment = {"--[[","]]"}
 chighlights = {
 --keywords
 ["if"] = "5", ["switch"] = "5", ["while"] = "5", ["for"] = "5", ["break"] = "5", ["continue"] = "5", ["return"] = "5", ["else"] = "5",
-["struct"] = "5", ["union"] = "5", ["typedef"] = "5", ["static"] = "5", ["static"] = "5", ["enum"] = "5", ["class"] = "5", ["case"] = "5",
+["struct"] = "5", ["union"] = "5", ["typedef"] = "5", ["static"] = "5", ["enum"] = "5", ["class"] = "5", ["case"] = "5",
 ["cost"] = "5",
 --types
 ["int8"] = "6", ["int16"] = "6", ["int32"] = "6", ["int64"] = "6",
@@ -622,8 +623,29 @@ chighlights = {
 ["int"] = "6", ["long"] = "6", ["double"] = "6", ["float"] = "6", ["char"] = "6", ["unsigned"] = "6", ["signed"] = "6", ["void"] = "6",
 ["short"] = "6", ["size_t"] = "6", ["ssize_t"] = "6", ["sizeof"] = "6", ["extern"] = "6", ["false"] = "6", ["true"] = "6",
 }
+cpphighlights = {
+--keywords
+["if"] = "5", ["switch"] = "5", ["while"] = "5", ["for"] = "5", ["break"] = "5", ["continue"] = "5", ["return"] = "5", ["else"] = "5",
+["struct"] = "5", ["union"] = "5", ["typedef"] = "5", ["static"] = "5", ["enum"] = "5", ["class"] = "5", ["case"] = "5",
+["cost"] = "5", ["auto"] = "5", ["goto"] = "5", ["default"] = "5", ["try"] = "5", ["catch"] = "5", ["throw"] = "5",
+["new"] = "5", ["delete"] = "5", [""] = "5",
+--types
+["int8"] = "6", ["int16"] = "6", ["int32"] = "6", ["int64"] = "6",
+["uint8"] = "6", ["uint16"] = "6", ["uint32"] = "6", ["uint64"] = "6",
+["int"] = "6", ["long"] = "6", ["double"] = "6", ["float"] = "6", ["char"] = "6", ["unsigned"] = "6", ["signed"] = "6", ["void"] = "6",
+["short"] = "6", ["size_t"] = "6", ["ssize_t"] = "6", ["sizeof"] = "6", ["extern"] = "6", ["false"] = "6", ["true"] = "6",
+
+["class"] = "6", ["namespace"] = "6", ["template"] = "6", ["public"] = "6", ["private"] = "6", ["protected"] = "6", ["typename"] = "6", 
+["this"] = "6", ["friend"] = "6", ["virtual"] = "6", ["using"] = "6", ["mutable"] = "6", ["volatile"] = "6", ["register"] = "6", ["explicit"] = "6",
+--values
+["true"] = "2", ["false"] = "2", ["NULL"] = "2", 
+}
 cComment = "//"
 cMultiComment = {"/*","*/"}
+
+
+
+
 
 function win:checkFile()
 	if self.filename:sub(#self.filename-3) == ".lua" then
@@ -972,7 +994,7 @@ function win:updateRowSyntaxHighlight(row)
 			c = "1"
 			goto CONTINUE
 		end
-		if self.filetype == "c" then
+		if self.filetype == "c" or self.filetype == "c++" then
 			if i == 1 and symb == "#" or (i == 2 and prev_symb == " " and symb == "#") then
 				c = string.rep("2",#self.rrows[row])
 				res = res..c
@@ -1354,6 +1376,7 @@ function win:search()
 	self.si = {}
 	self.si.cx = self.cursorx
 	self.si.cy = self.cursory
+	self.si.scroll = self.scroll
 	self.si.selectionStart = copyTable(self.selectionStart)
 	self.si.selectionEnd = copyTable(self.selectionEnd)
 	self.si.selecting = self.selecting
@@ -1364,6 +1387,7 @@ function win:search()
 	if not searchTerm then
 		self.cursorx = self.si.cx
 		self.cursory = self.si.cy
+		self.scroll = self.si.scroll
 		self.selectionStart = copyTable(self.si.selectionStart)
 		self.selectionEnd = copyTable(self.si.selectionEnd)
 		self.selecting = copyTable(self.si.selecting)
@@ -2403,23 +2427,30 @@ function win:openFile()--opens a file
 			self.message = "opened "..self.filename
 			self.dirty = false
 			self.errorline = {}
-			local f = self.filename:reverse():match("(%w+)%.")
-			if f then
-				self.filetype = f:reverse()
-			end
 		else
 			self.message = "could not open file: "..self.filename
+		end
+		local f = self.filename:reverse():match("(%w+)%.")
+		if f then
+			self.filetype = f:reverse()
+		else
+			self.filetype = ""
 		end
 		self.filetype = string.lower(self.filetype)
 		if self.filetype == "lua" then
 			self.highlights = luahighlights
 			self.comment = luaComment
 			self.multiComment = luaMultiComment
-		elseif self.filetype == "c" or self.filetype == "h" or self.filetype == "cc" then
+		elseif self.filetype == "c" or self.filetype == "h" then
 			self.highlights = chighlights
 			self.comment = cComment
 			self.multiComment = cMultiComment
 			self.filetype = "c"
+		elseif self.filetype == "cpp" or self.filetype == "hpp" or self.filetype == "cc" or self.filetype == "hh" or self.filetype == "hpp" then
+			self.highlights = cpphighlights
+			self.comment = cComment
+			self.multiComment = cMultiComment
+			self.filetype = "c++"
 		else
 			self.highlights = nil
 			self.comment = nil
@@ -2522,6 +2553,10 @@ ags = {...}
 if ags[1] then
 	windows[1].filename = ags[1]
 end
+priv = true
+if ags[2] and ags[2] == "no" then
+	priv = false
+end
 windows[1].id = 1
 currentWindow = 1--window input should be affecting
 
@@ -2535,7 +2570,9 @@ function main()
 	--
 	local line = 0
 	if mode then
-		io.write(esc.."?1049h")
+		if priv then
+			io.write(esc.."?1049h")
+		end
 		setrawmode()
 		ccax,ccay = getcurpos()
 		--drawScreen()
@@ -2594,7 +2631,9 @@ function main()
 	
 	setsanemode()
 	restoremode(mode)
-	io.write(esc.."?1049l")
+	if priv then
+		io.write(esc.."?1049l")
+	end
 	if not stat then
 		print("error line "..line)
 		print(erro)
