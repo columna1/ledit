@@ -51,10 +51,10 @@
 		F6/F7 - run run.sh in current dir if it exists
 		
 	
-	todo:
+	todo: (aka feature bloat)
 	organize code!!
 	support http://www.leonerd.org.uk/hacks/fixterms/
-	colorscheme for teminals that don't support 24bit color
+	colorscheme(s) for teminals that don't support 24bit color
 	make ctrl+q close only if all files have been saved
 	make windows that have the same file open use the same text buffers (buffer sharing)
 		to implement look at all windows open and see if the filename matches
@@ -1556,6 +1556,7 @@ function handleKeyInput(charIn)
 				w.dirty = true
 		elseif string.byte(a) == 9 then--tab
 			if w.selecting then
+				w:pushCommand()
 				local fl,ll = w.selectionStart[2],w.selectionEnd[2]
 				if fl > ll then ll,fl = fl,ll end
 				for i = fl,ll do
@@ -1943,6 +1944,7 @@ function handleKeyInput(charIn)
 			if isShift then w.selecting = true end
 		elseif a == "Z" then --shift+tab
 			if w.selecting then
+				w:pushCommand()
 				local fl,ll = w.selectionStart[2],w.selectionEnd[2]
 				if fl > ll then ll,fl = fl,ll end
 				for i = fl,ll do
@@ -2530,9 +2532,12 @@ tree.id = 1
 
 function main()
 	mode,err,msg = savemode()
+	--
 	local line = 0
 	if mode then
+		io.write(esc.."?1049h")
 		setrawmode()
+		ccax,ccay = getcurpos()
 		--drawScreen()
 		
 		local w = windows[1]
@@ -2582,11 +2587,14 @@ function main()
 	--clear screen
 	io.write(esc.."2J")
 	--move cursor to top left
-	io.write(esc.."H")
+	--io.write(esc.."H")
 	--show cursor
 	io.write(esc.."?25h")
+	setCursor(ccax,ccay)
+	
 	setsanemode()
 	restoremode(mode)
+	io.write(esc.."?1049l")
 	if not stat then
 		print("error line "..line)
 		print(erro)
