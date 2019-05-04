@@ -1702,6 +1702,13 @@ function handleKeyInput(charIn)
 				w.message = "document not saved, please save then exit or press again to close anyway"
 				w.quitTimes = w.quitTimes + 1
 			end
+		elseif a == ctrl("x") then
+			if w.selecting then
+				setclipboard(w:getSelectedText())
+				w:deleteSelectedText()
+				w.selecting = false
+			end
+			w.redraw = true
 		elseif a == ctrl("c") then
 			if w.selecting then
 				setclipboard(w:getSelectedText())
@@ -1883,43 +1890,40 @@ function handleKeyInput(charIn)
 			local isAlt  = false
 			local isCtrl  = false
 			if args then
-				if args[2] == 2 then isShift = true end
-				if args[2] == 3 then isAlt   = true end
-				if args[2] == 5 then isCtrl  = true end
-				if args[2] == 4 then isAlt   = true ; isShift = true end
-				if args[2] == 6 then isCtrl  = true ; isShift = true end
-				if args[2] == 7 then isCtrl  = true ; isAlt   = true end
+				local a2 = args[2] - 1
+				if a2 > 8 then error() end
+				if a2 >= 4 then isCtrl = true; a2 = a2-4 end
+				if a2 >= 2 then isAlt = true; a2 = a2-2 end
+				if a2 >= 1 then isShift = true; a2 = a2-1 end
 			end
 			
 			if not w.selecting and isShift then
 				w.selectionStart = {w.cursorx,w.cursory}
+				if not w.selectionEnd then w.selectionEnd = {w.cursorx,w.cursory} end
+				if not w.selectionEnd[1] then w.selectionEnd = {w.cursorx,w.cursory} end
 				w.selecting = true
 			elseif not isShift then
 				w.selecting = false
 				w.redraw = true
 			end
 			if w.selecting then w.redraw = true end
-			if isShift then w.selecting = true end
 			if isCtrl and not isAlt then
 				if a == "A" then--up
 					w:moveCursor(a)
-					if isShift then w.selectionEnd = {w.cursorx,w.cursory} end 
 				elseif a == "D" then--left
 					w:setcursorx(w:getLastSeperatorInRow(w.cursorx,w.cursory))
-					if isShift then w.selectionEnd = {w.cursorx,w.cursory} end 
 					w:updateRowRender(w.cursory)
 					w:drawLine(cursory)
 					w.toscroll = true
 				elseif a == "B" then--down
 					w:moveCursor(a)
-					if isShift then w.selectionEnd = {w.cursorx,w.cursory} end 
 				elseif a == "C" then--right
 					w:setcursorx(w:getNextSeperatorInRow(w.cursorx,w.cursory))
-					if isShift then w.selectionEnd = {w.cursorx,w.cursory} end
 					w:updateRowRender(w.cursory)
 					w:drawLine(w.cursory)
 					w.toscroll = true
 				end
+				if isShift then w.selectionEnd = {w.cursorx,w.cursory} end
 			elseif isAlt then
 				if a == "D" then
 					local cw = currentWindow
@@ -1936,6 +1940,7 @@ function handleKeyInput(charIn)
 				w:moveCursor(a)
 				if isShift then w.selectionEnd = {w.cursorx,w.cursory} end
 			end
+			if isShift then w.selecting = true end
 		elseif a == "Z" then --shift+tab
 			if w.selecting then
 				local fl,ll = w.selectionStart[2],w.selectionEnd[2]
@@ -2293,6 +2298,12 @@ function win:drawStatusBar()
 	str = str.."  id:"..self.id.."/"..#windows
 	if node then str = str.."  offset:"..node.offset end
 	
+	if self.selecting then
+		str = str.."   selecting from "
+		str = str..self.selectionStart[1]..","..self.selectionStart[2].." to "
+		str = str..self.selectionEnd[1]..","..self.selectionEnd[2]
+	end
+	
 	--undo/redo info
 	--[[
 	str = str.." "..#self.undoStack
@@ -2491,7 +2502,17 @@ function insertWindow(win)
 	return nil
 end
 
+function newBuffer()
+	local buf = {}
+	buf.rows = {}
+	buf.rrows = {}
+	buf.crows = {}
+	buf.incomment = {}
+	return buf
+end
+
 windows = {}
+buffers = {}
 windows[1] = newWindow()
 --windows = newWindow()
 --windows[1].filename = "ledit.lua"
