@@ -1,4 +1,3 @@
-
 --[[
 	clipboard support is disabled with luajit/lua5.1 because of sad popen behaviour
 	should work with lua 5.x+
@@ -33,6 +32,7 @@
 		ctrl+w - close window
 		ctrl+j/ctrl+k - expand current window(based on tree order)
 		ctrl+left/ctrl_right - move word at a time
+		ctrl+del/ctrl+backspace - delete work at a time
 		ctrl+x - cut
 		ctrl+c - copy
 		ctrl+v - paste
@@ -67,7 +67,6 @@
 		one entry for each file
 		make each window reference this buffer, make buffers keep a list of windows it's connected to
 		so that it can redraw windows windows accordingly
-	ctrl+backspace/ctrl+delete
 	tab completion of file name when opening files( will probably require to run ls or something and parse that)
 		environment stuff like ~/?
 	UI elements like scroll bars/resize with mouse box
@@ -635,7 +634,7 @@ cpphighlights = {
 ["int"] = "6", ["long"] = "6", ["double"] = "6", ["float"] = "6", ["char"] = "6", ["unsigned"] = "6", ["signed"] = "6", ["void"] = "6",
 ["short"] = "6", ["size_t"] = "6", ["ssize_t"] = "6", ["sizeof"] = "6", ["extern"] = "6", ["false"] = "6", ["true"] = "6",
 
-["class"] = "6", ["namespace"] = "6", ["template"] = "6", ["public"] = "6", ["private"] = "6", ["protected"] = "6", ["typename"] = "6", 
+["class"] = "6", ["namespace"] = "6", ["template"] = "6", ["public"] = "6", ["private"] = "6", ["protected"] = "6", ["typename"] = "6", ["const"] = "6",
 ["this"] = "6", ["friend"] = "6", ["virtual"] = "6", ["using"] = "6", ["mutable"] = "6", ["volatile"] = "6", ["register"] = "6", ["explicit"] = "6",
 --values
 ["true"] = "2", ["false"] = "2", ["NULL"] = "2", 
@@ -1578,6 +1577,11 @@ function handleKeyInput(charIn)
 					w:rowRemoveChar(w.cursory,w.cursorx)
 				end
 				w.dirty = true
+		elseif string.byte(a) == 8 then--ctrl+backspace/ctrl+h
+			w.selectionStart = {w:getLastSeperatorInRow(w.cursorx,w.cursory),w.cursory}
+			w.selectionEnd = {w.cursorx,w.cursory}
+			w:deleteSelectedText()
+			w:drawLine(w.cursory)
 		elseif string.byte(a) == 9 then--tab
 			if w.selecting then
 				w:pushCommand()
@@ -1829,10 +1833,17 @@ function handleKeyInput(charIn)
 					w.selecting = false
 					w.redraw = true
 				else
-					local cx,cy = w.cursorx,w.cursory
-					w:rowRemoveChar(w.cursory,w.cursorx+1)
-					w.cursory = cy
-					w:setcursorx(cx)
+					if args[2] and args[2] == 5 then--ctrl+del
+						w.selectionStart = {w.cursorx,w.cursory}
+						w.selectionEnd = {w:getNextSeperatorInRow(w.cursorx,w.cursory),w.cursory}
+						w:deleteSelectedText()
+						w:drawLine(w.cursory)
+					else
+						local cx,cy = w.cursorx,w.cursory
+						w:rowRemoveChar(w.cursory,w.cursorx+1)
+						w.cursory = cy
+						w:setcursorx(cx)
+					end
 				end
 				w.dirty = true
 			elseif args[1] == 4 then --end
