@@ -57,6 +57,7 @@
 	support http://www.leonerd.org.uk/hacks/fixterms/
 	colorscheme(s) for teminals that don't support 24bit color
 	make ctrl+q close only if all files have been saved
+	highlight all occurances of curretly selected word
 	make windows that have the same file open use the same text buffers (buffer sharing)
 		to implement look at all windows open and see if the filename matches
 		add new window variable link, this will tell the render function to render all windows with matching buffer
@@ -80,8 +81,18 @@
 	better language definition?
 	stream file (read only what's needed from the file, this allows opening of large files without slow down)
 	plugins???
+	bookmarks?
+		new idea, when working on something you often need to work on multiple sections of code and go back and forth
+		it would be convenient to be able to bookmark lines to jump back and forth to instead of using incremental search over and over
+	double click to select a word?
+	if a word is selected then highlight matching words?
+		
 	
-	--cutting or deletion a section doesn't update the multi-comment table correctly?
+	bugs:
+		when you select up a line more chars than intended get selected
+		lua errors don't seem to display correctly in windows
+	
+	--cutting or deletion of a section doesn't update the multi-comment table correctly?
 	
 	goals:
 		should be fast in just about any terminal
@@ -436,6 +447,8 @@ function win:pushCommand()
 end
 
 function win:undo(com)
+	--discard selection as it will probably be invalid
+	self.selecting = false
 	self:pushCommand()
 	--pop from stack
 	local comm = {}
@@ -487,6 +500,8 @@ function win:undo(com)
 end
 
 function win:redo()
+	--discard selection as it will probably be invalid
+	self.selecting = false
 	if self.currentCommand ~= -1 then 
 		self.redoStack = {}
 		return
@@ -1751,12 +1766,7 @@ function handleKeyInput(charIn)
 			w:insertText(w.cursory,w.cursorx,aa)
 			w.redraw = true
 		elseif a == ctrl("d") then
-			local row = w.cursory
-			table.insert(w.rows,row+1, w.rows[row])
-			table.insert(w.rrows,row+1,w.rrows[row])
-			table.insert(w.crows,row+1,w.crows[row])
-			w.redraw = true
-			w.dirty = true
+			w:insertText(w.cursory,#w.rows[w.cursory]+1,"\n"..w.rows[w.cursory])
 		elseif a == ctrl("b") then
 			clear = not clear
 			if clear then
@@ -1776,7 +1786,7 @@ function handleKeyInput(charIn)
 				local fn = w:prompt("save as >")
 				if fn then
 					w.filename = fn
-					saveFile()
+					w:saveFile()
 				end
 			end
 			w:checkFile()
@@ -2086,6 +2096,11 @@ function handleKeyInput(charIn)
 				end
 			end
 		end
+	end
+	w.numOffset = #tostring(#w.rows)+2
+	if w.numOffset ~= w.lastNumOffset then
+		w.lastNumOffset = w.numOffset
+		w.redraw = true
 	end
 end
 
@@ -2434,6 +2449,7 @@ function win:openFile()--opens a file
 				local li = l:gsub("\r","")
 				table.insert(self.rows,li)
 			end
+			if not self.lineEnding then self.lineEnding = "\n" end
 			fi:close()
 			self.message = "opened "..self.filename
 			self.dirty = false
