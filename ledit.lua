@@ -2415,9 +2415,7 @@ function win:saveFile()
 	local f = ""
 	for i = 1,#self.rows do
 		f = f..self.rows[i]
-		if i ~= #self.rows then
-			f = f..self.lineEnding
-		end
+		f = f..self.lineEnding
 	end
 	file,err = io.open(self.filename,"w")
 	if not file then
