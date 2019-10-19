@@ -54,6 +54,7 @@
 	
 	todo: (aka feature bloat)
 	organize code!!
+	better drawing routines (use the window feature to scroll lines instead of redrawing everything)
 	support http://www.leonerd.org.uk/hacks/fixterms/
 	colorscheme(s) for teminals that don't support 24bit color
 	make ctrl+q close only if all files have been saved
@@ -99,16 +100,14 @@
 		should be one single file for portability
 		
 ]]
-pr = print
-function print(...)
-	pr(...,"\r")
-end
+--pr = print
+--function print(...)
+--	pr(...,"\r")
+--end
 
 function printTable(tabl, wid)
 	if not wid then wid = 1 end
-	--if wid > 1 then return end
 	for i,v in pairs(tabl) do
-		--if type(i) == "number" then if i >= 1000 then break end end
 		if type(v) == "table" then
 			print(string.rep(" ", wid * 3) .. i .. " = {")
 			printTable(v, wid + 1)
@@ -1375,7 +1374,7 @@ function win:searchCallback(querry,key)
 			s,e = self.rows[i]:lower():find(querry:lower(),e+1,querry)
 		end
 	end
-	self.message = self.message.."  **not found"
+	self.message = "search for >"..querry.."  **not found"
 	self.cursorx = self.si.cx
 	self.cursory = self.si.cy
 	self.selectionStart = copyTable(self.si.selectionStart)
@@ -2348,6 +2347,7 @@ function win:drawStatusBar()
 	str = str.." "..self.cursory.."/"..#self.rows
 	--str = str.."      "..self.x..","..self.y
 	str = str.."  id:"..self.id.."/"..#windows
+	str = str.." buffer: "..self.buffer.." "..self.bfilename
 	if node then str = str.."  offset:"..node.offset end
 	
 	if self.selecting then
@@ -2392,6 +2392,11 @@ function win:drawScreen()
 	local str = ""
 	if self.toscroll then self:checkCursorScroll() end
 	if self.redraw then
+		for i,_ in pairs(windows) do
+			if windows[i].buffer == self.buffer then
+				windows[i].redraw = true
+			end
+		end
 		--clearScreen(ab)
 		if self.toscroll then self:checkCursorScroll() end
 		--hide cursor while drawing
@@ -2429,6 +2434,27 @@ function win:saveFile()
 end
 
 function win:openFile()--opens a file
+	if self.buffer == -1 then
+		table.insert(buffers,newBuffer())
+		self.buffer = #buffers
+		self.bfilename = self.filename
+	end
+	
+	local set = false
+	
+	for i = 1,#buffers do
+		if buffers[i].bfilename == self.filename then
+			self.buffer = i
+			set = true
+		end
+	end
+	
+	if set then
+		self.cursorx,self.cursory = 1,1
+		self.scroll,self.colScroll = 0,0
+		return
+	end
+	
 	self.cursorx,self.cursory = 1,1
 	self.scroll,self.colScroll = 0,0
 	self.rows = {}
@@ -2450,7 +2476,7 @@ function win:openFile()--opens a file
 			if not self.lineEnding then self.lineEnding = "\n" end
 			fi:close()
 			self.message = "opened "..self.filename
-			self.dirty = false
+			--self.dirty = false
 			self.errorline = {}
 		else
 			self.message = "could not open file: "..self.filename
@@ -2466,7 +2492,7 @@ function win:openFile()--opens a file
 			self.highlights = luahighlights
 			self.comment = luaComment
 			self.multiComment = luaMultiComment
-		elseif self.filetype == "c" or self.filetype == "h" then
+		elseif self.filetype == "c" or self.filetye == "h" then
 			self.highlights = chighlights
 			self.comment = cComment
 			self.multiComment = cMultiComment
@@ -2484,6 +2510,7 @@ function win:openFile()--opens a file
 		end
 		self:updateRender()
 		self.redraw = true
+		self.bfilename = self.filename
 	end
 	self.numOffset = #tostring(#self.rows)+2
 	self.cursorRx = self.numOffset
@@ -2491,24 +2518,42 @@ end
 
 function newWindow()--sets defaults
 	local self = {}
+	local t = {}
+	t["__index"] = function(t,key)
+		if buffers[t.buffer] and buffers[t.buffer][key] then
+			return buffers[t.buffer][key]
+		elseif win[key] then return win[key]
+		else return nil end
+	end
+	t["__newindex"] = function(t,key,value)
+		--print("newindex",key,value)
+		if buffers[t.buffer] and buffers[t.buffer][key] then
+			buffers[t.buffer][key] = value
+		else
+			rawset(t,key,value)
+		end
+	end
 	self.x = 1
 	self.y = 0
 	--state
 	self.filename = ""
-	self.tmux = true
+	self.buffer = -1
+	self.id = -1
+	
+	self.tmux = true--use spaces to color the rest of lines instead of using esc\k
 	self.welcome = true
 	self.tabWidth = 4
-	self.buffers = {}
+	--self.buffers = {}
 	self.cursorx,cursory = 1,1
 	self.targetx = 1
 	self.cursorRx = 1
 	self.termLines,termCols = 26,50
-	self.rows = {}
-	self.rrows = {}--for rendering
-	self.crows = {}--for colors
-	self.incomment = {}
-	self.lineEnding = "\n"
-	self.filetype = ""
+	--self.rows = {}
+	--self.rrows = {}--for rendering
+	--self.crows = {}--for colors
+	--self.incomment = {}
+	--self.lineEnding = "\n"
+	--self.filetype = ""
 	self.scroll = 0
 	self.colScroll = 0
 	--to see if we should check our window scroll for our cursor or not
@@ -2517,7 +2562,7 @@ function newWindow()--sets defaults
 	self.showCursor = true
 	--offset for the ruler
 	self.numOffset = 0
-	self.dirty = false
+	--self.dirty = true
 	self.quitTimes = 0
 	self.quitConfTimes = 2
 	self.redraw = true
@@ -2532,17 +2577,22 @@ function newWindow()--sets defaults
 	self.colors = themes.monokai
 	--self.colors = themes.tomorrowNight
 	--self.colors = themes.tomorrowNightBright
-	self.cleanUndo = 0
-	self.undoStack = {}
-	self.redoStack = {}
-	self.currentCommand = -1
-	self.commandCount = 0
+	--self.cleanUndo = 0
+	--self.undoStack = {}
+	--self.redoStack = {}
+	--self.currentCommand = -1
+	--self.commandCount = 0
 	self.commandPos = {0,0}
 	self.commandData = ""
+	
+	
 	self.termLines = 0
 	self.termCols = 0
 	self.realTermLines = 0
-	setmetatable(self,{__index = win})
+	--setmetatable(self,{__index = win})
+	setmetatable(self,t)
+	--print(self.rows)
+	--error()
 	return self
 end
 
@@ -2560,18 +2610,34 @@ function insertWindow(win)
 	return nil
 end
 
+--buf.windows will have a list of windows that use that buffer, this
+--allows a lookup to see what windows to redraw when a buffer is edited
+
 function newBuffer()
 	local buf = {}
+	buf.bfilename = ""
 	buf.rows = {}
 	buf.rrows = {}
 	buf.crows = {}
 	buf.incomment = {}
+	buf.lineEnding = ""
+	buf.filetype = ""
+	buf.cleanUndo = 0
+	buf.undoStack = {}
+	buf.redoStack = {}
+	buf.currentCommand = -1
+	buf.commandCount = 0
+	buf.dirty = false
+	
+	buf.windows = {}
 	return buf
 end
 
 windows = {}
 buffers = {}
 windows[1] = newWindow()
+buffers[1] = newBuffer()
+windows[1].buffer = 1
 --windows = newWindow()
 --windows[1].filename = "ledit.lua"
 ags = {...}
@@ -2592,7 +2658,6 @@ tree.id = 1
 
 function main()
 	mode,err,msg = savemode()
-	--
 	local line = 0
 	if mode then
 		if priv then
