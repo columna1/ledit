@@ -1805,18 +1805,22 @@ function handleKeyInput(charIn)
 			w:redo()
 		elseif a == ctrl("j") then
 			local node = getNodeByID(tree,currentWindow)
-			if not node.offset then node.offset = 0 end
-			node.offset = node.offset + 1
-			if isLeaf(node.left) then windows[node.left .id].redraw = true end
-			if isLeaf(node.right) then windows[node.right.id].redraw = true end
-			updateSize(node)
+			if node then
+				if not node.offset then node.offset = 0 end
+				node.offset = node.offset + 1
+				if isLeaf(node.left) then windows[node.left .id].redraw = true end
+				if isLeaf(node.right) then windows[node.right.id].redraw = true end
+				updateSize(node)
+			end
 		elseif a == ctrl("k") then
 			local node = getNodeByID(tree,currentWindow)
-			if not node.offset then node.offset = 0 end
-			node.offset = node.offset - 1
-			if isLeaf(node.left) then windows[node.left .id].redraw = true end
-			if isLeaf(node.right) then windows[node.right.id].redraw = true end
-			updateSize(node)
+			if node then
+				if not node.offset then node.offset = 0 end
+				node.offset = node.offset - 1
+				if isLeaf(node.left) then windows[node.left .id].redraw = true end
+				if isLeaf(node.right) then windows[node.right.id].redraw = true end
+				updateSize(node)
+			end
 		elseif a == ctrl("o") then
 			local fn = w:prompt("open file >")
 			if fn then
