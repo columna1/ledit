@@ -2,7 +2,7 @@
 	clipboard support is disabled with luajit/lua5.1 because of sad popen behaviour
 	should work with lua 5.x+
 	
-	only works in terminals that support VT102/EMCA-48/ISO 6429/ANSI escape codes
+	only works in terminals that support VT100 escape codes (pretty much all linux terminal emulators)
 	http://man7.org/linux/man-pages/man4/console_codes.4.html
 	
 	if command stty isn't found, find your equivilant for your terminal and replace the "stty = "stty"" with your own version
@@ -89,8 +89,8 @@
 		
 	
 	bugs:
-		when you select up a line more chars than intended get selected
-		lua errors don't seem to display correctly in windows
+		using shift+up doesn't quite work as one might expect
+		lua errors don't seem to display correctly in panes
 	
 	--cutting or deletion of a section doesn't update the multi-comment table correctly?
 	
@@ -657,8 +657,24 @@ cpphighlights = {
 cComment = "//"
 cMultiComment = {"/*","*/"}
 
-
-
+goHighlights = {
+	--keywords
+	["if"] = "5", ["else"] = "5", ["for"] = "5", ["switch"] = "5", ["func"] = "5",
+	["break"] = "5", ["case"] = "5", ["continue"] = "5", ["default"] = "5", ["go"] = "5", ["goto"] = "5", ["range"] = "5", ["return"] = "5",
+	--preproc?
+	["package"] = "5", ["import"] = "5", ["const"] = "5", ["var"] = "5", ["type"] = "5", ["struct"] = "5",
+	["defer"] = "5", ["iota"] = "5",
+	--types
+	["int"] = "6", ["int8"] = "6", ["int16"] = "6", ["int32"] = "6", ["int64"] = "6",
+	["float32"] = "6", ["float64"] = "6",
+	["complex64"] = "6", ["complex128"] = "6",
+	["uintptr"] = "6", ["byte"] = "6", ["rune"] = "6", ["string"] = "6", ["interface"] = "6", ["bool"] = "6",
+	["map"] = "6", ["chan"] = "6", ["error"] = "6",
+	--litterals
+	["true"] = "2", ["false"] = "2", ["nil"] = "2",
+}
+goComment = "//"
+goMultiComment = {"/*","*/"}
 
 
 function win:checkFile()
@@ -813,7 +829,7 @@ function right(a) io.write(esc..(a or 1).."C") end
 function getScreenSize()
 	-- return current screen dimensions (line, coloumn as integers)
 	mod = savemode()
-	down(999); right(999)
+	down(9999); right(9999)
 	local l, c = getcurpos()
 	restoremode(mod)
 	return l, c
@@ -1600,12 +1616,15 @@ function handleKeyInput(charIn)
 		elseif string.byte(a) == 9 then--tab
 			if w.selecting then
 				w:pushCommand()
+				local cx,cy = w.cursorx,w.cursory
 				local fl,ll = w.selectionStart[2],w.selectionEnd[2]
 				if fl > ll then ll,fl = fl,ll end
 				for i = fl,ll do
 					w:rowInsertChar(i,1,"\t")
 					w:pushCommandPart()
 				end
+				w.cursory = cy
+				w:setcursorx(cx)
 				w.redraw = true
 			else
 				w:rowInsertChar(w.cursory,w.cursorx,"\t")
@@ -1616,6 +1635,12 @@ function handleKeyInput(charIn)
 		elseif a == ctrl("p") then--ctrl+p
 			--io.write(esc.."1;"..w.termLines.."r")
 			--io.write(esc.."D")
+		elseif a == ctrl("a") then--select all
+			w.selectionStart = {1,1}
+			w.selectionEnd = {#w.rows[#w.rows]+1,#w.rows}
+			w.cursorx,w.cursory = #w.rows[#w.rows]+1,#w.rows
+			w.selecting = true
+			w.redraw = true
 		elseif a == ctrl("q") then--ctrl+q quit
 			local dirty = false
 			for i,k in pairs(windows) do
@@ -1630,7 +1655,7 @@ function handleKeyInput(charIn)
 			else
 				running = false
 			end
-		elseif a == ctrl("a") then--ctrl+a refresh screen
+		elseif a == ctrl("l") then--ctrl+a refresh screen
 			local he,wi = getScreenSize()
 			tree.width = wi
 			tree.height = he
@@ -1766,7 +1791,10 @@ function handleKeyInput(charIn)
 			w:insertText(w.cursory,w.cursorx,aa)
 			w.redraw = true
 		elseif a == ctrl("d") then
+			local cx,cy = w.cursorx,w.cursory
 			w:insertText(w.cursory,#w.rows[w.cursory]+1,"\n"..w.rows[w.cursory])
+			w.cursory = cy+1
+			w:setcursorx(cx)
 		elseif a == ctrl("b") then
 			clear = not clear
 			if clear then
@@ -1791,7 +1819,7 @@ function handleKeyInput(charIn)
 			end
 			w:checkFile()
 			w.redraw = true
-		elseif a == ctrl("l") then
+		elseif a == ctrl("g") then
 			local ln = w:prompt("jump to line >")
 			if tonumber(ln) and tonumber(ln) <= #w.rows then
 				w:setcursorx(1)
@@ -1895,45 +1923,54 @@ function handleKeyInput(charIn)
 					w.message = "nothing to run..."
 				end
 			end
-		elseif a == "J" or (a == "H" and args and args[2] == 2) then--shift+home
-			if w.selecting then
+		elseif a == "J" or a == "H" then--shift+home
+			if args and #args == 2 then
+				if w.selecting then
+					local fns = w:findFirstNonSeperator(w.cursory)
+					if w.cursorx == fns then
+						w:setcursorx(1)
+					else
+						w:setcursorx(fns)
+					end
+					w.selectionEnd = {w.cursorx,w.cursory}
+				else
+					w.selecting = true
+					w.selectionStart = {w.cursorx,w.cursory}
+					local fns = w:findFirstNonSeperator(w.cursory)
+					if w.cursorx == fns then
+						w:setcursorx(1)
+					else
+						w:setcursorx(fns)
+					end
+					w.selectionEnd = {w.cursorx,w.cursory}
+				end
+				w.redraw = true
+			else
 				local fns = w:findFirstNonSeperator(w.cursory)
 				if w.cursorx == fns then
 					w:setcursorx(1)
 				else
 					w:setcursorx(fns)
 				end
-				w.selectionEnd = {w.cursorx,w.cursory}
-				w.toscroll = true
-				w.redraw = true
-			else
-				w.selecting = true
-				w.selectionStart = {w.cursorx,w.cursory}
-				local fns = w:findFirstNonSeperator(w.cursory)
-				if w.cursorx == fns then
-					w:setcursorx(1)
+			end
+			w.toscroll = true
+		elseif a == "F" then
+			if args and #args == 2 then
+				if w.selecting then
+					w:setcursorx(#w.rows[w.cursory]+1)
+					w.selectionEnd = {w.cursorx,w.cursory}
 				else
-					w:setcursorx(fns)
-				end
-				w.selectionEnd = {w.cursorx,w.cursory}
-				w.toscroll = true
-				w.redraw = true
-			end
-		elseif a == "F" then--shift+end
-			if w.selecting then
-				w:setcursorx(#w.rows[w.cursory]+1)
-				w.selectionEnd = {w.cursorx,w.cursory}
-				w.toscroll = true
+					w.selecting = true
+					w.selectionStart = {w.cursorx,w.cursory}
+					w:setcursorx(#w.rows[w.cursory]+1)
+					w.targetx = w.cursorx
+					w.selectionEnd = {w.cursorx,w.cursory}
+				end	
 				w.redraw = true
 			else
-				w.selecting = true
-				w.selectionStart = {w.cursorx,w.cursory}
 				w:setcursorx(#w.rows[w.cursory]+1)
-				w.targetx = w.cursorx
-				w.selectionEnd = {w.cursorx,w.cursory}
-				w.toscroll = true
-				w.redraw = true
 			end
+			w.toscroll = true
 		elseif a == "A" or a == "B" or a == "C" or a == "D" then--arrow keys and ctrl/shift
 			w:pushCommand()
 			local isShift = false
@@ -1949,6 +1986,9 @@ function handleKeyInput(charIn)
 			
 			if not w.selecting and isShift then
 				w.selectionStart = {w.cursorx,w.cursory}
+				if a == "A" then
+					w.selectionStart[1] = w.selectionStart[1]-1--TODO fix hack
+				end
 				if not w.selectionEnd then w.selectionEnd = {w.cursorx,w.cursory} end
 				if not w.selectionEnd[1] then w.selectionEnd = {w.cursorx,w.cursory} end
 				w.selecting = true
@@ -2004,17 +2044,31 @@ function handleKeyInput(charIn)
 					end
 				end	
 			else
-				if w.rows[w.cursory]:sub(1,1) == "\t" or w.rows[i]:sub(1,1) == " " then
+				if w.rows[w.cursory]:sub(1,1) == "\t" or w.rows[w.cursory]:sub(1,1) == " " then
 					w:rowRemoveChar(w.cursory,2)
-					w:setcursorx(w.cursorx-1)
+					--w:setcursorx(w.cursorx-1)
 					w:updateRowRender(w.cursory)
-							w.toscroll = true
+					w.toscroll = true
 				end
 			end
 			w.redraw = true
 			w.dirty = true
 		end
 	elseif prefix == "O" then--movement keys
+		if a == "H" then--home
+			w:pushCommand()
+			local fns = w:findFirstNonSeperator(w.cursory)
+			if w.cursorx == fns then
+				w:setcursorx(1)
+			else
+				w.cursorx = fns
+			end
+			w.toscroll = true
+		elseif a == "F" then--end
+			w:pushCommand()
+			w:setcursorx(#w.rows[w.cursory]+1)
+			w.toscroll = true
+		end
 		w:pushCommand()
 		w:moveCursor(a)
 		if w.selecting then w.redraw = true end
@@ -2354,6 +2408,8 @@ function win:drawStatusBar()
 	str = str.."  id:"..self.id.."/"..#windows
 	if node then str = str.."  offset:"..node.offset end
 	
+	str = str.." "..self.cursorx..","..self.cursory.." "
+	
 	if self.selecting then
 		str = str.."   selecting from "
 		str = str..self.selectionStart[1]..","..self.selectionStart[2].." to "
@@ -2480,6 +2536,11 @@ function win:openFile()--opens a file
 			self.comment = cComment
 			self.multiComment = cMultiComment
 			self.filetype = "c++"
+		elseif self.filetype == "go" then
+			self.highlights = goHighlights
+			self.comment = goComment
+			self.multiComment = multiComment
+			self.filetype = "go"
 		else
 			self.highlights = nil
 			self.comment = nil
