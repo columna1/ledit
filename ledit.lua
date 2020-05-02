@@ -134,7 +134,8 @@ endl = "\r\n"
 
 
 clipboard = ""
-carefulClipBoard = false
+fakeClipBoard = false
+windowsClipBoard = true
 
 --[[template
 [""] = {
@@ -748,11 +749,20 @@ function savemode()
 end
 
 function getclipboard()
-	if _VERSION == "Lua 5.1" and carefulClipBoard then
+	if fakeClipBoard then
 		return clipboard 
 	end
-	local fh = io.popen("xsel")
+	local fh = false
+	if windowsClipBoard then
+		fh = io.popen("paste.exe")
+	else
+		fh = io.popen("xsel")
+	end
 	local res = fh:read("*a")
+	if windowsClipBoard then
+		res = res:sub(1,#res-2)
+		res = res:gsub("\r\n","\n")
+	end
 	local succ, e, msg = fh:close()
 	--return succ and res or false, e, msg
 	if not succ then
@@ -761,14 +771,22 @@ function getclipboard()
 	return res
 end
 function setclipboard(text)
-	if _VERSION == "Lua 5.1" and carefulClipBoard then
+	if fakeClipBoard then
 		clipboard = text
 		return
 	end 
-	local fh = io.popen("xsel -i","w")
-	fh:write(text)
-	succ, e, msg = fh:close()
-	clipboard = text
+	local fh = false
+	if windowsClipBoard then
+		local f = io.open("clipboard","wb")
+		f:write(text)
+		f:close()
+		os.execute("clip.exe < clipboard")
+		os.execute("rm clipboard")
+	else
+		fh = io.popen("xsel -i","w")
+		fh:write(text)
+		succ, e, msg = fh:close()
+	end
 	--return succ and res or false, e, msg
 	if not succ then
 		clipboard = text
@@ -946,10 +964,16 @@ end
 
 
 function win:checkHideCursor()--if our cursor if off screen, don't let it blink
+	if self.selecting then
+		return esc.."?25l"
+	end
 	if self.cursory > self.scroll and self.cursory < self.scroll+self.termLines+1 then
 		return esc.."?25h"
 	else
 		return esc.."?25l"--hide cursor
+	end
+	if self.selecting then
+		return esc.."?25l"
 	end
 	return ""
 end
@@ -1337,6 +1361,7 @@ function win:getLastSeperatorInRow(char,row)
 		end
 	end
 	if char-1 == pos then pos = pos - 1 end
+	if pos == 1 then return 1 end
 	return pos+1
 end
 
@@ -1477,7 +1502,7 @@ function win:getSelectedText()
 		for l = fl+1,ll-1 do
 			str = str..self.rows[l].."\n"
 		end
-		str = str..self.rows[ll]:sub(1,e-1)
+		str = str..self.rows[ll]:sub(1,e)
 		return str
 	end
 end
@@ -1655,7 +1680,7 @@ function handleKeyInput(charIn)
 			else
 				running = false
 			end
-		elseif a == ctrl("l") then--ctrl+a refresh screen
+		elseif a == ctrl("g") then--ctrl+g refresh screen(get new size and redraw everything)
 			local he,wi = getScreenSize()
 			tree.width = wi
 			tree.height = he
@@ -1819,7 +1844,7 @@ function handleKeyInput(charIn)
 			end
 			w:checkFile()
 			w.redraw = true
-		elseif a == ctrl("g") then
+		elseif a == ctrl("l") then
 			local ln = w:prompt("jump to line >")
 			if tonumber(ln) and tonumber(ln) <= #w.rows then
 				w:setcursorx(1)
@@ -2450,8 +2475,17 @@ end
 
 function win:drawScreen()
 	local str = ""
+	--local he,wi = getScreenSize()
 	if self.toscroll then self:checkCursorScroll() end
 	if self.redraw then
+		--local he,wi = getScreenSize()
+		--if he and wi then
+		--	tree.width = wi
+		--	tree.height = he
+		--	tree.x = 1
+		--	tree.y = 0
+		--	updateSize(tree)
+		--end
 		--clearScreen(ab)
 		if self.toscroll then self:checkCursorScroll() end
 		--hide cursor while drawing
@@ -2560,7 +2594,7 @@ function newWindow()--sets defaults
 	self.y = 0
 	--state
 	self.filename = ""
-	self.tmux = true
+	self.tmux = false
 	self.welcome = true
 	self.tabWidth = 4
 	self.buffers = {}
@@ -2674,6 +2708,7 @@ function main()
 		w.realTermLines = w.termLines
 		w.termLines = w.termLines - 2
 		stat = true
+		--w.openFile(w)
 		stat,erro = pcall(w.openFile,w)
 		if not stat then
 			line = 1
@@ -2683,6 +2718,7 @@ function main()
 		w:drawScreen()
 		--renderTree(windows)
 		while running do
+			--handleKeyInput()
 			stat,erro = pcall(handleKeyInput)
 			if not stat then
 				line = 3
@@ -2692,13 +2728,16 @@ function main()
 			if clear then
 				for i,_ in pairs(windows) do
 					if (i == currentWindow or windows[i].redraw) and i ~= currentWindow then
+						--windows[i].drawScreen(windows[i])
 						stat,erro = pcall(windows[i].drawScreen,windows[i])
 						if not stat then
 							line = 4
 							break
 						end
+						
 					end
 				end
+				--windows[currentWindow].drawScreen(windows[currentWindow])
 				stat,erro = pcall(windows[currentWindow].drawScreen,windows[currentWindow])
 				if not stat then
 					line = 4
