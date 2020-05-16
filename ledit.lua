@@ -1876,7 +1876,7 @@ function handleKeyInput(charIn)
 			end
 		elseif a == ctrl("o") then
 			local fn = w:prompt("open file >")
-			if fn then
+			if fn and #fn > 0 then
 				w.filename = fn
 				w:openFile()
 			end
