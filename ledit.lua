@@ -135,7 +135,7 @@ endl = "\r\n"
 
 clipboard = ""
 fakeClipBoard = false
-windowsClipBoard = true
+windowsClipBoard = false
 
 --[[template
 [""] = {
@@ -1689,6 +1689,7 @@ function handleKeyInput(charIn)
 			w:updateRender()
 			updateSize(tree)
 		elseif a == ctrl("r") then
+		--[[
 			--ghetto search and replace
 			local function esc(x)
 			   return (x:gsub('%%', '%%%%')
@@ -1711,6 +1712,33 @@ function handleKeyInput(charIn)
 			end
 			w:updateRender()
 			w.redraw = true
+			]]
+			--temporary
+			--runs the program
+			local f = io.open("run.sh")
+				if f then
+					f:close()
+					if w.dirty then
+						if #w.filename > 0 then
+							w:pushCommand()
+							w:saveFile()
+							w.cleanUndo = #w.undoStack
+						else
+							local fn = w:prompt("save as >")
+							if fn then
+								w.filename = fn
+								w:editorSave()
+							end
+						end
+						w:checkFile()
+						w.redraw = true
+					end
+					--if args[1] == 17 then runProgram("./run.sh") else runProgramNoPause("./run.sh") end
+					runProgram("./run.sh")
+					w.redraw = true
+				else
+					w.message = "nothing to run..."
+				end
 		elseif a == ctrl("f") then
 			w:search()
 		elseif a == ctrl("e") then
@@ -2528,6 +2556,8 @@ function win:openFile()--opens a file
 	self.rows = {}
 	self.rrows = {}
 	self.crows = {}
+	self.undoStack = {}
+	self.redoStack = {}
 	if #self.filename > 0 then
 		local fi = io.open(self.filename,"r")
 		if fi then
@@ -2594,7 +2624,7 @@ function newWindow()--sets defaults
 	self.y = 0
 	--state
 	self.filename = ""
-	self.tmux = false
+	self.tmux = true
 	self.welcome = true
 	self.tabWidth = 4
 	self.buffers = {}
