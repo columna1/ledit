@@ -135,7 +135,7 @@ endl = "\r\n"
 
 clipboard = ""
 fakeClipBoard = false
-windowsClipBoard = false
+windowsClipBoard = true
 
 --[[template
 [""] = {
@@ -760,7 +760,7 @@ function getclipboard()
 	end
 	local res = fh:read("*a")
 	if windowsClipBoard then
-		res = res:sub(1,#res-2)
+		--res = res:sub(1,#res-2)
 		res = res:gsub("\r\n","\n")
 	end
 	local succ, e, msg = fh:close()
@@ -1244,7 +1244,7 @@ end
 function win:insertText(row,at,str)
 	--push current undo command if it exists
 	self:pushCommand()
-	
+	printLog("insert: "..row,at,str)
 	if #self.rows == 0 then table.insert(self.rows,"") end
 	--first split text into lines
 	local lines = str:split("\n")
@@ -1658,7 +1658,8 @@ function handleKeyInput(charIn)
 			w:insertRow(w.cursory,w.cursorx)
 			w.dirty = true
 		elseif a == ctrl("p") then--ctrl+p
-			--io.write(esc.."1;"..w.termLines.."r")
+			--io.write(esc.."1;"..
+			--io.write(esc.."1;"..w.termLines-2 .."r")
 			--io.write(esc.."D")
 		elseif a == ctrl("a") then--select all
 			w.selectionStart = {1,1}
@@ -1688,6 +1689,11 @@ function handleKeyInput(charIn)
 			tree.y = 0
 			w:updateRender()
 			updateSize(tree)
+		elseif a == ctrl("j") then
+			--io.write(esc.."2T")
+			--io.write("Hello")
+		elseif a == ctrl("k") then
+			--io.write(esc.."3S")
 		elseif a == ctrl("r") then
 		--[[
 			--ghetto search and replace
@@ -2155,14 +2161,31 @@ function handleKeyInput(charIn)
 				end
 			end
 			if args[1] == 0 and di then
-				if #w.rows > 0 then
+				if #w.rows > 0 then--mouse wheel up scroll up
+					local ws = w.scroll
 					w.scroll = math.max(w.scroll - 3,0)
-					w.redraw = true
+					
+					if #windows < 2 and ws > 2 then
+						io.write(esc.."H"..csi.."M"..csi.."M"..csi.."M")
+						w:drawLine(w.scroll+1)
+						w:drawLine(w.scroll+2)
+						w:drawLine(w.scroll+3)
+					elseif ws > 0 then
+						w.redraw = true
+					end
 				end
-			elseif args[1] == 1 then
+			elseif args[1] == 1 then--mouse wheel down scroll down
 				if #w.rows > 0 then
+					ws = w.scroll
 					w.scroll = math.min(w.scroll + 3,#w.rows-1)
-					w.redraw = true	 
+					if #windows < 2 and ws < #w.rows-4 then
+						io.write(esc.."3S")
+						w:drawLine(w.scroll+w.termLines)
+						w:drawLine(w.scroll+w.termLines-1)
+						w:drawLine(w.scroll+w.termLines-2)
+					elseif ws < #w.rows-1 then
+						w.redraw = true	 
+					end
 				end
 			end
 		else
@@ -2304,6 +2327,7 @@ function win:genLine(y)
 			add = 0
 			str = str..fgCol(255,255,255)..bg
 		elseif self.selecting and self.selectionStart[2] == self.selectionEnd[2] and line == self.selectionStart[2] then
+			--if whole selection is on one line
 			local f,e = 0,0
 			if self.selectionStart[1] > self.selectionEnd[1] then
 				f,e = self.selectionEnd[1],self.selectionStart[1] 
@@ -2337,6 +2361,7 @@ function win:genLine(y)
 				str = str..s
 			end
 		elseif self.selecting and ((self.selectionStart[2] < self.selectionEnd[2] and self.selectionStart[2] == line)or(self.selectionStart[2]>self.selectionEnd[2] and self.selectionEnd[2] == line)) then
+			--when we are selecting multiple lines and our cursor is higher in the document
 			local start = 0
 			if self.selectionStart[2] < self.selectionEnd[2] then
 				start = self:CxtoRx(line,self.selectionStart[1])-self.numOffset+1
@@ -2360,7 +2385,8 @@ function win:genLine(y)
 					end
 				end
 				str = str..s
-				if i == #li then
+				--if i == #li then
+				if (not (start > #li)) and i == #li then
 					str = str.." "
 					add = 0
 					sel = false
@@ -2368,7 +2394,9 @@ function win:genLine(y)
 					currentColor = "-1"
 				end
 			end
+			if start > #li then str = str..bgCol(255,255,255)..fgCol(0,0,0).." " end
 		elseif self.selecting and ((self.selectionStart[2] < self.selectionEnd[2] and self.selectionEnd[2] == line)or(self.selectionStart[2]>self.selectionEnd[2] and self.selectionStart[2] == line)) then
+			--we are selecting multiple lines and our cursor is further down in the document
 			local en = 0
 			if self.selectionStart[2] > self.selectionEnd[2] then
 				en = self:CxtoRx(line,self.selectionStart[1])-self.numOffset+1
@@ -2397,6 +2425,7 @@ function win:genLine(y)
 					currentColor = "-1"
 				end
 			end
+			if en > #li then str = str.." " end
 		else
 			isselecting = true
 		end
@@ -2448,7 +2477,8 @@ function win:drawStatusBar()
 	local str = ""
 	str = str..bgCol(0,100,0)
 	str = str..string.rep(" ",self.termCols)
-	str = str..setCursor(self.x,self.termLines+self.y+1)
+
+		str = str..setCursor(self.x,self.termLines+self.y+1)
 	str = str..self.filename
 	str = str..(self.dirty and "*" or "")
 	str = str..(self.lineEnding == "\n" and "  unix \\n" or "  DOS \\r\\n")
