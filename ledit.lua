@@ -86,6 +86,8 @@
 		it would be convenient to be able to bookmark lines to jump back and forth to instead of using incremental search over and over
 	double click to select a word?
 	if a word is selected then highlight matching words?
+	make selecting faster (only render lines that have changed, stop rendering the whole screen)
+	scrolling using cursor/arrow keys should be made more efficent as well
 		
 	
 	bugs:
@@ -1319,7 +1321,7 @@ function win:rowRemoveChar(row,at)
 		removedchar = self.rows[row]:sub(at-1,at-1)
 		self.rows[row] = fp..lp
 		self:updateRowRender(row)
-		self:setcursorx(self.cursorx - 1)
+		self:setcursorx(math.max(self.cursorx - 1,1))
 		self:drawLine(self.cursory)
 	end
 	self.numOffset = #tostring(#self.rows)+2
@@ -1689,10 +1691,10 @@ function handleKeyInput(charIn)
 			tree.y = 0
 			w:updateRender()
 			updateSize(tree)
-		elseif a == ctrl("j") then
+		--elseif a == ctrl("j") then
 			--io.write(esc.."2T")
 			--io.write("Hello")
-		elseif a == ctrl("k") then
+		--elseif a == ctrl("k") then
 			--io.write(esc.."3S")
 		elseif a == ctrl("r") then
 		--[[
@@ -1784,7 +1786,7 @@ function handleKeyInput(charIn)
 					local code = com:sub(5)
 					local cd,err = load(code)
 					if not cd then
-						w.message = error
+						w.message = err
 					else
 						cd()
 						w.message = ""
@@ -2045,7 +2047,7 @@ function handleKeyInput(charIn)
 			
 			if not w.selecting and isShift then
 				w.selectionStart = {w.cursorx,w.cursory}
-				if a == "A" then
+				if a == "A" then--up
 					w.selectionStart[1] = w.selectionStart[1]-1--TODO fix hack
 				end
 				if not w.selectionEnd then w.selectionEnd = {w.cursorx,w.cursory} end
@@ -2062,7 +2064,7 @@ function handleKeyInput(charIn)
 				elseif a == "D" then--left
 					w:setcursorx(w:getLastSeperatorInRow(w.cursorx,w.cursory))
 					w:updateRowRender(w.cursory)
-					w:drawLine(cursory)
+					w:drawLine(w.cursory)
 					w.toscroll = true
 				elseif a == "B" then--down
 					w:moveCursor(a)
