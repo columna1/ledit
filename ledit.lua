@@ -2267,7 +2267,7 @@ function clearScreen(buff)
 end
 
 function setCursor(x,y)
-	return string.format(esc.."%d;%dH",y,x)
+	return string.format(esc.."%d;%dH",math.max(0,y),math.max(x,0))
 end
 function win:updateCursor()
 	return setCursor(self.cursorRx-self.colScroll+self.x-1,self.cursory-self.scroll+self.y)
