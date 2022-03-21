@@ -2231,6 +2231,7 @@ function handleKeyInput(charIn)
 								w.selecting = true
 							end
 							w.redraw = true
+							if isShift then w.cscroll = true end
 						else
 							if w.selecting then w.redraw = true end
 							w.selecting = false
