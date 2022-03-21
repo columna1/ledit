@@ -137,7 +137,7 @@ endl = "\r\n"
 
 clipboard = ""
 fakeClipBoard = false
-windowsClipBoard = true
+windowsClipBoard = false
 
 --[[template
 [""] = {
@@ -758,7 +758,8 @@ function getclipboard()
 	if windowsClipBoard then
 		fh = io.popen("paste.exe")
 	else
-		fh = io.popen("xsel")
+		--fh = io.popen("xsel")
+		fh = io.popen("wl-paste")
 	end
 	local res = fh:read("*a")
 	if windowsClipBoard then
@@ -786,6 +787,7 @@ function setclipboard(text)
 		os.execute("rm clipboard")
 	else
 		fh = io.popen("xsel -i","w")
+		fh = io.popen("wl-copy","w")
 		fh:write(text)
 		succ, e, msg = fh:close()
 	end
@@ -1882,7 +1884,7 @@ function handleKeyInput(charIn)
 			w.redraw = true
 		elseif a == ctrl("l") then
 			local ln = w:prompt("jump to line >")
-			if tonumber(ln) and tonumber(ln) <= #w.rows then
+			if tonumber(ln) and tonumber(ln) > 0 and tonumber(ln) <= #w.rows then
 				w:setcursorx(1)
 				w.cursory = tonumber(ln)
 				w.toscroll = true
@@ -2006,17 +2008,19 @@ function handleKeyInput(charIn)
 					w.selectionEnd = {w.cursorx,w.cursory}
 				end
 				w.redraw = true
-			else
+			else--home
 				local fns = w:findFirstNonSeperator(w.cursory)
 				if w.cursorx == fns then
 					w:setcursorx(1)
 				else
 					w:setcursorx(fns)
 				end
+				if w.selecting then w.redraw = true end
+				w.selecting = false
 			end
 			w.toscroll = true
-		elseif a == "F" then
-			if args and #args == 2 then
+		elseif a == "F" then--end
+			if args and #args == 2 then--shift+end
 				if w.selecting then
 					w:setcursorx(#w.rows[w.cursory]+1)
 					w.selectionEnd = {w.cursorx,w.cursory}
@@ -2028,8 +2032,10 @@ function handleKeyInput(charIn)
 					w.selectionEnd = {w.cursorx,w.cursory}
 				end	
 				w.redraw = true
-			else
+			else--end
 				w:setcursorx(#w.rows[w.cursory]+1)
+				if w.selecting then w.redraw = true end
+				w.selecting = false
 			end
 			w.toscroll = true
 		elseif a == "A" or a == "B" or a == "C" or a == "D" then--arrow keys and ctrl/shift
