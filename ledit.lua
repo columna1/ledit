@@ -2178,6 +2178,7 @@ function handleKeyInput(charIn)
 						w:drawLine(w.scroll+2)
 						w:drawLine(w.scroll+3)
 					elseif ws > 0 then
+						w.cscroll = true
 						w.redraw = true
 					end
 				end
@@ -2191,7 +2192,8 @@ function handleKeyInput(charIn)
 						w:drawLine(w.scroll+w.termLines-1)
 						w:drawLine(w.scroll+w.termLines-2)
 					elseif ws < #w.rows-1 then
-						w.redraw = true	 
+						w.cscroll = true
+						w.redraw = true
 					end
 				end
 			end
@@ -2319,10 +2321,12 @@ function win:genLine(y)
 			li = li:sub(self.colScroll+1)
 			ci = ci:sub(self.colScroll+1)
 		end
-		if #li+self.numOffset > self.termCols then li = li:sub(1,self.termCols-self.numOffset)..">" end
-		if #li+self.numOffset > self.termCols then ci = ci:sub(1,self.termCols-self.numOffset).."9" end
-		local isselecting = false
 		local add = 1
+		local ll = true
+		if #li+self.numOffset > self.termCols then li = li:sub(1,self.termCols-self.numOffset)..">" ; ll = false end
+		if #li+self.numOffset > self.termCols then ci = ci:sub(1,self.termCols-self.numOffset).."9" end
+		
+		local isselecting = false
 
 		if self.selecting and (self.selectionStart[1] == self.selectionEnd[1] and self.selectionStart[2] == self.selectionEnd[2]) then
 			self.selecting = false
@@ -2330,8 +2334,9 @@ function win:genLine(y)
 			--whole line is selected
 			
 			str = str..bgCol(255,255,255)..fgCol(0,0,0)
-			str = str..li.." "
-			add = 0
+			str = str..li
+			if ll then str = str.." " end
+			add = add-1
 			str = str..fgCol(255,255,255)..bg
 		elseif self.selecting and self.selectionStart[2] == self.selectionEnd[2] and line == self.selectionStart[2] then
 			--if whole selection is on one line
@@ -2393,15 +2398,15 @@ function win:genLine(y)
 				end
 				str = str..s
 				--if i == #li then
-				if (not (start > #li)) and i == #li then
+				if (not (start > #li)) and i == #li and ll then
 					str = str.." "
-					add = 0
+					add = add-1
 					sel = false
 					str = str..bg
 					currentColor = "-1"
 				end
 			end
-			if start > #li then str = str..bgCol(255,255,255)..fgCol(0,0,0).." " end
+			if start > #li then str = str..bgCol(255,255,255)..fgCol(0,0,0).." " ; add = add-1 end
 		elseif self.selecting and ((self.selectionStart[2] < self.selectionEnd[2] and self.selectionEnd[2] == line)or(self.selectionStart[2]>self.selectionEnd[2] and self.selectionStart[2] == line)) then
 			--we are selecting multiple lines and our cursor is further down in the document
 			local en = 0
@@ -2432,7 +2437,7 @@ function win:genLine(y)
 					currentColor = "-1"
 				end
 			end
-			if en > #li then str = str.." " end
+			if en > #li and ll then str = str.." " ; add = add-1 end
 		else
 			isselecting = true
 		end
@@ -2450,8 +2455,8 @@ function win:genLine(y)
 			end
 		end
 		
-		if self.tmux then 
-			str = str..bg..string.rep(" ",self.termCols-self.numOffset-#li+add-1)
+		if self.tmux or #windows > 1 then 
+			str = str..bg..string.rep(" ",self.termCols-self.numOffset-#li+add)
 		else
 			str = str..bg..esc.."K"
 		end
@@ -2477,7 +2482,7 @@ function win:drawLines()
 			str = str..self:genLine(y)
 			str = str.."\r\n"
 		end
-		if not self.selecting then
+		if not self.selecting or self.cscroll then
 			renderLine()
 		else--selecting. only update relevant lines
 			local l = y+self.scroll
@@ -2578,6 +2583,7 @@ function win:drawScreen()
 		io.write(str)
 		self.redraw = false
 	end
+	if self.cscroll then self.cscroll = false end
 	str = str..setCursor(self.x,self.termLines+self.y+1)
 	str = str..self:drawStatusBar()
 	str = str..setCursor(self.x,self.termLines+self.y+2)
@@ -2696,6 +2702,7 @@ function newWindow()--sets defaults
 	self.colScroll = 0
 	--to see if we should check our window scroll for our cursor or not
 	self.toscroll = true
+	self.cscroll = false
 	--showing cursor or not
 	self.showCursor = true
 	--offset for the ruler
