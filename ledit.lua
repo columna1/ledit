@@ -762,6 +762,7 @@ function getclipboard()
 		fh = io.popen("wl-paste")
 	end
 	local res = fh:read("*a")
+	res = res:sub(0,#res-1)
 	if windowsClipBoard then
 		--res = res:sub(1,#res-2)
 		res = res:gsub("\r\n","\n")
@@ -786,7 +787,7 @@ function setclipboard(text)
 		os.execute("clip.exe < clipboard")
 		os.execute("rm clipboard")
 	else
-		fh = io.popen("xsel -i","w")
+		--fh = io.popen("xsel -i","w")
 		fh = io.popen("wl-copy","w")
 		fh:write(text)
 		succ, e, msg = fh:close()
@@ -1671,6 +1672,7 @@ function handleKeyInput(charIn)
 			w.cursorx,w.cursory = #w.rows[#w.rows]+1,#w.rows
 			w.selecting = true
 			w.redraw = true
+			w.cscroll = true
 		elseif a == ctrl("q") then--ctrl+q quit
 			local dirty = false
 			for i,k in pairs(windows) do
