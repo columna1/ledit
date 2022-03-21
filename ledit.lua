@@ -86,7 +86,6 @@
 		it would be convenient to be able to bookmark lines to jump back and forth to instead of using incremental search over and over
 	double click to select a word?
 	if a word is selected then highlight matching words?
-	make selecting faster (only render lines that have changed, stop rendering the whole screen)
 	scrolling using cursor/arrow keys should be made more efficent as well
 		
 	
@@ -2452,7 +2451,7 @@ function win:genLine(y)
 		end
 		
 		if self.tmux then 
-			str = str..bg..string.rep(" ",self.termCols-self.numOffset-#li+add)
+			str = str..bg..string.rep(" ",self.termCols-self.numOffset-#li+add-1)
 		else
 			str = str..bg..esc.."K"
 		end
@@ -2473,9 +2472,26 @@ end
 function win:drawLines()
 	local str = ""
 	for y = 1,self.termLines do
-		str = str..esc.. self.y+y .. ";" .. self.x .. "H"
-		str = str..self:genLine(y)
-		str = str.."\r\n"
+		local function renderLine()
+			str = str..esc.. self.y+y .. ";" .. self.x .. "H"
+			str = str..self:genLine(y)
+			str = str.."\r\n"
+		end
+		if not self.selecting then
+			renderLine()
+		else--selecting. only update relevant lines
+			local l = y+self.scroll
+			if self.selectionStart[2] == self.selectionEnd[2] then renderLine() end
+			if self.selectionEnd[2] == self.cursory then
+				if math.abs(l-self.selectionEnd[2]) < 2 then
+					renderLine()
+				end
+			elseif self.selectionStart[2] == self.cursory then
+				if math.abs(l-self.selectionStart[2]) < 2  then
+					renderLine()
+				end
+			end
+		end
 	end
 	return str
 end
@@ -2662,7 +2678,7 @@ function newWindow()--sets defaults
 	self.y = 0
 	--state
 	self.filename = ""
-	self.tmux = true
+	self.tmux = false
 	self.welcome = true
 	self.tabWidth = 4
 	self.buffers = {}
