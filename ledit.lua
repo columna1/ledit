@@ -92,6 +92,7 @@
 	bugs:
 		using shift+up doesn't quite work as one might expect
 		lua errors don't seem to display correctly in panes
+		when scrolled horisontally with tabs at the begining of the line clicking near the begining of the line doesn't behave as expected
 	
 	--cutting or deletion of a section doesn't update the multi-comment table correctly?
 	
