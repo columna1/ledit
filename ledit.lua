@@ -101,10 +101,6 @@
 		should be one single file for portability
 		
 ]]
-pr = print
-function print(...)
-	pr(...,"\r")
-end
 
 function printTable(tabl, wid)
 	if not wid then wid = 1 end
@@ -377,12 +373,18 @@ function getNodeByID(tree,id)
 	if not id then error("id expected got nil") end
 	if isNode(tree) then
 		if isNode(tree.left) then
-			return getNodeByID(tree.left,id)
+			local r = getNodeByID(tree.left,id)
+			if r then
+				return r
+			end
 		elseif tree.left.id == id then
 			return tree
 		end
 		if isNode(tree.right) then
-			return getNodeByID(tree.right,id)
+			local r = getNodeByID(tree.right,id)
+			if r then
+				return r
+			end
 		elseif tree.right.id == id then
 			return tree
 		end
@@ -2772,6 +2774,12 @@ ags = {...}
 if ags[1] then
 	windows[1].filename = ags[1]
 end
+
+pr = print
+function print(...)
+	pr(...,"\n")
+end
+
 priv = true
 if ags[2] and ags[2] == "no" then
 	priv = false
