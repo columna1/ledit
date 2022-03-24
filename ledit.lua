@@ -2811,48 +2811,62 @@ function main()
 		w.realTermLines = w.termLines
 		w.termLines = w.termLines - 2
 		stat = true
-		--w.openFile(w)
-		stat,erro = pcall(w.openFile,w)
-		if not stat then
-			line = 1
-			goto END
+		local function errorfunc(err)
+			setsanemode()
+			restoremode(mode)
+			if priv then
+				io.write(esc.."?1049l")
+			end
+			print("error")
+			print(debug.traceback(err,2))
+			os.exit()
 		end
+		--w.openFile(w)
+		--stat,erro = pcall(w.openFile,w)
+		xpcall(w.openFile,errorfunc,w)
+		--if not stat then
+		--	line = 1
+		--	goto END
+		--end
 		
 		w:drawScreen()
 		--renderTree(windows)
 		while running do
 			--handleKeyInput()
-			stat,erro = pcall(handleKeyInput)
-			if not stat then
-				line = 3
-				break
-			end
+			--stat,erro = pcall(handleKeyInput)
+			xpcall(handleKeyInput,errorfunc)
+			--if not stat then
+			--	line = 3
+			--	break
+			--end
 
 			if clear then
 				for i,_ in pairs(windows) do
 					if (i == currentWindow or windows[i].redraw) and i ~= currentWindow then
 						--windows[i].drawScreen(windows[i])
-						stat,erro = pcall(windows[i].drawScreen,windows[i])
-						if not stat then
-							line = 4
-							break
-						end
+						--stat,erro = pcall(windows[i].drawScreen,windows[i])
+						xpcall(windows[i].drawScreen,errorfunc,windows[i])
+						--if not stat then
+						--	line = 4
+						--	break
+						--end
 						
 					end
 				end
 				--windows[currentWindow].drawScreen(windows[currentWindow])
-				stat,erro = pcall(windows[currentWindow].drawScreen,windows[currentWindow])
-				if not stat then
-					line = 4
-					break
-				end
+				--stat,erro = pcall(windows[currentWindow].drawScreen,windows[currentWindow])
+				xpcall(windows[currentWindow].drawScreen,errorfunc,windows[currentWindow])
+				--if not stat then
+				--	line = 4
+				--	break
+				--end
 			end
 		end
 	else	
 		print("could not save mode")
 		print(err,msg)
 	end
-	::END::
+	--::END::
 	--clear screen
 	io.write(esc.."2J")
 	--move cursor to top left
@@ -2866,9 +2880,9 @@ function main()
 	if priv then
 		io.write(esc.."?1049l")
 	end
-	if not stat then
-		print("error line "..line)
-		print(erro)
-	end
+	--if not stat then
+	--	print("error line "..line)
+	--	print(erro)
+	--end
 end
 main()
