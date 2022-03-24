@@ -1658,6 +1658,7 @@ function handleKeyInput(charIn)
 				w.cursory = cy
 				w:setcursorx(cx)
 				w.redraw = true
+				w.cscroll = true--todo make more efficient
 			else
 				w:rowInsertChar(w.cursory,w.cursorx,"\t")
 			end
@@ -2113,7 +2114,8 @@ function handleKeyInput(charIn)
 						w:pushCommandPart()
 						w:updateRowRender(i)
 					end
-				end	
+				end
+				w.cscroll = true
 			else
 				if w.rows[w.cursory]:sub(1,1) == "\t" or w.rows[w.cursory]:sub(1,1) == " " then
 					w:rowRemoveChar(w.cursory,2)
