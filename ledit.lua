@@ -126,7 +126,8 @@ end
 
 stty = "stty"
 
-csi = "\x1b"
+--csi = "\x1b"
+csi = string.char(0x1b)
 esc = csi.."["
 endl = "\r\n"
 
@@ -685,7 +686,12 @@ goMultiComment = {"/*","*/"}
 function win:checkFile()
 	if self.filename:sub(#self.filename-3) == ".lua" then
 		local f = io.open(self.filename,"r")
-		local a,err = load(f:read("*a"))
+		local a,err
+		if _VERSION == "Lua 5.1" then
+			a,err = loadstring(f:read("*a"))
+		else
+			a,err = load(f:read("*a"))
+		end
 		f:close()
 		if not a then
 			local line = err:match("at line (%d+)%)")
@@ -735,13 +741,15 @@ end
 
 function setrawmode()
 	--io.write("\x1b[?1000h\x1b[?1002h\x1b[?1015h\x1b[?1006h")
-	io.write("\x1b[?1000h\x1b[?1002h\x1b[?1006h")
+	--io.write("\x1b[?1000h\x1b[?1002h\x1b[?1006h")
+	io.write(csi.."[?1000h"..csi.."[?1002h"..csi.."[?1006h")
 	--os.execute("tput smkx")
 	return os.execute(stty.." raw -iexten -echo 2> /dev/null")
 end
 function setsanemode()
 	--io.write("\x1b[?1006l\x1b[?1015l\x1b[?1002l\x1b[?1000l")
-	io.write("\x1b[?1006l\x1b[?1002l\x1b[?1000l")
+	--io.write("\x1b[?1006l\x1b[?1002l\x1b[?1000l")
+	io.write(csi.."[?1006l"..csi.."[?1002l"..csi.."[?1000l")
 	--io.write("\x1b[?1000l\x1b[?1002l\x1b[?1006l")
 	return os.execute(stty.." sane")
 end
@@ -831,10 +839,11 @@ end
 
 function getcurpos()
 	-- return current cursor position (line, column as integers)
-	io.write("\027[6n") -- report cursor position. answer: esc[n;mR
+	io.write(string.char(27).."[6n") -- report cursor position. answer: esc[n;mR
 	local c, i = 0, 0
 	local s = ""
-	c = getNextByte(); if c ~= "\x1b" then return nil end
+	--c = getNextByte(); if c ~= "\x1b" then return nil end
+	c = getNextByte(); if c ~= csi then return nil end
 	c = getNextByte(); if c ~= "["	  then return nil end
 	while true do
 		i = i + 1
@@ -1051,14 +1060,18 @@ function win:updateRowSyntaxHighlight(row)
 		multiCommentEnd = self.multiComment[2]:sub(1,1)
 	end
 	
+	local continue = true
+	
 	while i <= #self.rrows[row] do
+		continue = true
 		local c = "1"
 		local symb = self.rrows[row]:sub(i,i)
 		if not self.highlights then 
 			c = "1"
-			goto CONTINUE
+			--goto CONTINUE
+			continue = false
 		end
-		if self.filetype == "c" or self.filetype == "c++" then
+		if (self.filetype == "c" or self.filetype == "c++") and continue then
 			if i == 1 and symb == "#" or (i == 2 and prev_symb == " " and symb == "#") then
 				c = string.rep("2",#self.rrows[row])
 				res = res..c
@@ -1066,58 +1079,68 @@ function win:updateRowSyntaxHighlight(row)
 			end
 		end
 
-		if in_comment then
+		if in_comment and continue then
 			c = "4"
-			goto CONTINUE
+			--goto CONTINUE
+			continue = false
 		end
-		if inmulticomment and not in_string then
+		if (inmulticomment and not in_string) and continue then
 			if symb == multiCommentEnd and i + #self.multiComment[2]-1 <= #self.rrows[row] then
 				if self.rrows[row]:sub(i,i+#self.multiComment[2]-1) == self.multiComment[2] then
 					c = "44"
 					inmulticomment = false
 					i = i + 1
-					goto CONTINUE
+					--goto CONTINUE
+					continue = false
 				else
 					c = "4"
-					goto CONTINUE
+					--goto CONTINUE
+					continue = false
 				end
 			else
 				c = "4"
-				goto CONTINUE
+				--goto CONTINUE
+				continue = false
 			end
 		end
-		if symb == commentStart and i + #self.comment-1 <= #self.rrows[row] and not in_string then
+		if (symb == commentStart and i + #self.comment-1 <= #self.rrows[row] and not in_string) and continue then
 			if i + #self.multiComment[1]-1 <= #self.rrows[row] and self.rrows[row]:sub(i,i+#self.multiComment[1]-1) == self.multiComment[1] then
 				inmulticomment = true
 				c = "4"
-				goto CONTINUE
+				--goto CONTINUE
+				continue = false
 			elseif self.rrows[row]:sub(i,i+#self.comment-1) == self.comment then
 				c = "4"
 				in_comment = true
-				goto CONTINUE
+				--goto CONTINUE
+				continue = false
 			end
 		end
 		
-		if in_string then
+		if in_string and continue then
 			if symb == "\\" and i + 1 < #self.rrows[row] then
 				i = i + 1
 				c = "33"
 				prev_sep = true
-				goto CONTINUE
+				--goto CONTINUE
+				continue = false
+			else
+				if symb == in_string then in_string = false end
+				c = "3"
+				prev_sep = true
+				--goto CONTINUE
+				continue = false
 			end
-			if symb == in_string then in_string = false end
-			c = "3"
-			prev_sep = true
-			goto CONTINUE
-		else
+		elseif continue then
 			if symb == "'" or symb == '"' then
 				in_string = symb
 				c = "3"
-				goto CONTINUE
+				--goto CONTINUE
+				continue = false
 			end
 		end
 		
-		if symb == "." then
+		if symb == "." and continue then
 			local word = self.rrows[row]:sub(lastsep+1,i)
 			--print(word,lastsep,i)
 			if self.highlights[word] then
@@ -1129,11 +1152,12 @@ function win:updateRowSyntaxHighlight(row)
 				end
 				res = res..string.rep(self.highlights[word],#word-1)
 				c = "1"
-				goto CONTINUE
+				--goto CONTINUE
+				continue = false
 			end
 		end
 
-		if prev_sep then
+		if prev_sep and continue then
 			local word = self:getWord(row,i)
 			if word and self.highlights[word] then
 				local len = #word
@@ -1141,29 +1165,31 @@ function win:updateRowSyntaxHighlight(row)
 				c = string.rep(self.highlights[word],len)
 				i = i + len-1
 				prev_sep = false
-				goto CONTINUE
+				--goto CONTINUE
+				continue = false
 			elseif word and string.match(word,"^0x%x+$") then--hexidecimal numbers
 				local len = #word
 				c = string.rep("2",len)
 				i = i + len-1
 				prev_sep = false
-				goto CONTINUE
+				--goto CONTINUE
+				continue = false
 			end
 		end
 		
-		if tonumber(symb) and (prev_sep or prev_c == "2") or (tonumber(prev_symb) and symb == ".") then
+		if (tonumber(symb) and (prev_sep or prev_c == "2") or (tonumber(prev_symb) and symb == ".")) and continue then
 			c = "2"
 		end
 		
-		if isOperator(symb) then
+		if isOperator(symb) and continue then
 			c = "5"
 		end
 
-		prev_sep = isSeperator(symb)
-		if prev_sep then
+		if continue then prev_sep = isSeperator(symb) end
+		if prev_sep and continue then
 			lastsep = i
 		end
-		::CONTINUE::
+		--::CONTINUE::
 		prev_symb = symb
 		prev_c = c
 		res = res..c
@@ -2833,6 +2859,8 @@ function main()
 		local w = windows[1]
 		w.x = 1
 		th,tw = getScreenSize()
+		--th,tw = 49,213
+		--print("test\r\ntest",th,tw)
 		w.termLines,w.termCols = th,tw
 		w.realTermLines = w.termLines
 		w.termLines = w.termLines - 2
@@ -2845,11 +2873,13 @@ function main()
 			end
 			print("error")
 			print(debug.traceback(err,2))
+			print(err)
 			os.exit()
 		end
 		--w.openFile(w)
-		--stat,erro = pcall(w.openFile,w)
-		xpcall(w.openFile,errorfunc,w)
+		stat,erro = pcall(w.openFile,w)
+		if not stat then errorfunc(erro) end
+		--xpcall(w.openFile,errorfunc,w)
 		--if not stat then
 		--	line = 1
 		--	goto END
@@ -2859,8 +2889,9 @@ function main()
 		--renderTree(windows)
 		while running do
 			--handleKeyInput()
-			--stat,erro = pcall(handleKeyInput)
-			xpcall(handleKeyInput,errorfunc)
+			stat,erro = pcall(handleKeyInput)
+			if not stat then errorfunc(erro) end
+			--xpcall(handleKeyInput,errorfunc)
 			--if not stat then
 			--	line = 3
 			--	break
@@ -2870,8 +2901,9 @@ function main()
 				for i,_ in pairs(windows) do
 					if i ~= currentWindow then
 						--windows[i].drawScreen(windows[i])
-						--stat,erro = pcall(windows[i].drawScreen,windows[i])
-						xpcall(windows[i].drawScreen,errorfunc,windows[i])
+						stat,erro = pcall(windows[i].drawScreen,windows[i])
+						if not stat then errorfunc(erro) end
+						--xpcall(windows[i].drawScreen,errorfunc,windows[i])
 						--if not stat then
 						--	line = 4
 						--	break
@@ -2880,8 +2912,9 @@ function main()
 					end
 				end
 				--windows[currentWindow].drawScreen(windows[currentWindow])
-				--stat,erro = pcall(windows[currentWindow].drawScreen,windows[currentWindow])
-				xpcall(windows[currentWindow].drawScreen,errorfunc,windows[currentWindow])
+				stat,erro = pcall(windows[currentWindow].drawScreen,windows[currentWindow])
+				if not stat then errorfunc(erro) end
+				--xpcall(windows[currentWindow].drawScreen,errorfunc,windows[currentWindow])
 				--if not stat then
 				--	line = 4
 				--	break
