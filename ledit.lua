@@ -1,13 +1,13 @@
 --[[
 	clipboard support is disabled with luajit/lua5.1 because of sad popen behaviour
 	should work with lua 5.x+
-	
+
 	only works in terminals that support VT100 escape codes (pretty much all linux terminal emulators)
 	http://man7.org/linux/man-pages/man4/console_codes.4.html
-	
+
 	if command stty isn't found, find your equivilant for your terminal and replace the "stty = "stty"" with your own version
-	
-	
+
+
 	features:
 		keeps indentation
 		syntax highlighting
@@ -22,9 +22,9 @@
 		one button run of project
 		window/pane system
 			tiling tree system
-		
+
 	*depends on some linux programs for some features (such as xsel)
-	
+
 	keybinds:
 		shift+tab - remove one level of indention on selected line(s)
 		shift+arrow keys - selection
@@ -50,8 +50,8 @@
 		ctrl+q - quit
 		ctrl+d - duplicate line
 		F6/F7 - run run.sh in current dir if it exists
-		
-	
+
+
 	todo: (aka feature bloat)
 	organize code!!
 	support http://www.leonerd.org.uk/hacks/fixterms/
@@ -87,19 +87,19 @@
 	double click to select a word?
 	if a word is selected then highlight matching words?
 	scrolling using cursor/arrow keys should be made more efficent as well
-		
-	
+
+
 	bugs:
 		using shift+up doesn't quite work as one might expect
 		lua errors don't seem to display correctly in panes
 		when scrolled horisontally with tabs at the begining of the line clicking near the begining of the line doesn't behave as expected
-	
+
 	--cutting or deletion of a section doesn't update the multi-comment table correctly?
-	
+
 	goals:
 		should be fast in just about any terminal
 		should be one single file for portability
-		
+
 ]]
 
 local function printTable(tabl, wid)
@@ -118,8 +118,8 @@ local function printTable(tabl, wid)
 			if v == nil then error("nan") end
 		elseif type(v) == "boolean" then
 			print(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. (v and "true" or "false") ..",")
-		end 
-	end 
+		end
+	end
 end
 
 --state
@@ -498,7 +498,7 @@ function win:undo(com)
 		if #self.undoStack == self.cleanUndo then self.dirty = false end
 		return
 	end
-	
+
 	if comm[1] == 1 then--text add command,
 		for i = 1,#comm[3] do
 			self:rowRemoveChar(comm[2][2],comm[2][1]+1)
@@ -531,7 +531,7 @@ end
 function win:redo()
 	--discard selection as it will probably be invalid
 	self.selecting = false
-	if self.currentCommand ~= -1 then 
+	if self.currentCommand ~= -1 then
 		self.redoStack = {}
 		return
 	end
@@ -600,56 +600,56 @@ local luahighlights = {
 	["self."] = "2", ["self"] = "2",
 
 	--builtins
-	["assert"] = "6", ["collectgarbage"] = "6", ["dofile"] = "6", ["error"] = "6", ["getfenv"] = "6", ["getmetatable"] = "6", 
-	["ipairs"] = "6", ["load"] = "6", ["loadfile"] = "6", ["module"] = "6", ["next"] = "6", ["pairs"] = "6", ["pcall"] = "6", 
-	["print"] = "6", ["rawequal"] = "6", ["rawget"] = "6", ["rawlen"] = "6", ["rawset"] = "6", ["require"] = "6", ["select"] = "6", 
+	["assert"] = "6", ["collectgarbage"] = "6", ["dofile"] = "6", ["error"] = "6", ["getfenv"] = "6", ["getmetatable"] = "6",
+	["ipairs"] = "6", ["load"] = "6", ["loadfile"] = "6", ["module"] = "6", ["next"] = "6", ["pairs"] = "6", ["pcall"] = "6",
+	["print"] = "6", ["rawequal"] = "6", ["rawget"] = "6", ["rawlen"] = "6", ["rawset"] = "6", ["require"] = "6", ["select"] = "6",
 	["setfenv"] = "6", ["setmetatable"] = "6", ["tonumber"] = "6", ["tostring"] = "6", ["type"] = "6", ["unpack"] = "6", ["xpcall"] = "6",
 
-	["io.close"] = "6", ["io.flush"] = "6", ["io.input"] = "6", ["io.lines"] = "6", ["io.open"] = "6", ["io.output"] = "6", 
-	["io.popen"] = "6", ["io.read"] = "6", ["io.tmpfile"] = "6", ["io.type"] = "6", ["io.write"] = "6", ["io"] = "6", 
+	["io.close"] = "6", ["io.flush"] = "6", ["io.input"] = "6", ["io.lines"] = "6", ["io.open"] = "6", ["io.output"] = "6",
+	["io.popen"] = "6", ["io.read"] = "6", ["io.tmpfile"] = "6", ["io.type"] = "6", ["io.write"] = "6", ["io"] = "6",
 
-	["math.abs"] = "6", ["math.acos"] = "6", ["math.asin"] = "6", ["math.atan2"] = "6", ["math.atan"] = "6", ["math.ceil"] = "6", 
-	["math.cosh"] = "6", ["math.cos"] = "6", ["math.deg"] = "6", ["math.exp"] = "6", ["math.floor"] = "6", ["math.fmod"] = "6", 
-	["math.frexp"] = "6", ["math.huge"] = "6", ["math.ldexp"] = "6", ["math.log10"] = "6", ["math.log"] = "6", ["math.max"] = "6", 
-	["math.maxinteger"] = "6", ["math.min"] = "6", ["math.mininteger"] = "6", ["math.modf"] = "6", ["math.pi"] = "6", ["math.pow"] = "6", 
-	["math.rad"] = "6", ["math.random"] = "6", ["math.randomseed"] = "6", ["math.sinh"] = "6", ["math.sqrt"] = "6", ["math.tan"] = "6", 
-	["math.tointeger"] = "6", ["math.type"] = "6", ["math.ult"] = "6", ["math"] = "6", 
+	["math.abs"] = "6", ["math.acos"] = "6", ["math.asin"] = "6", ["math.atan2"] = "6", ["math.atan"] = "6", ["math.ceil"] = "6",
+	["math.cosh"] = "6", ["math.cos"] = "6", ["math.deg"] = "6", ["math.exp"] = "6", ["math.floor"] = "6", ["math.fmod"] = "6",
+	["math.frexp"] = "6", ["math.huge"] = "6", ["math.ldexp"] = "6", ["math.log10"] = "6", ["math.log"] = "6", ["math.max"] = "6",
+	["math.maxinteger"] = "6", ["math.min"] = "6", ["math.mininteger"] = "6", ["math.modf"] = "6", ["math.pi"] = "6", ["math.pow"] = "6",
+	["math.rad"] = "6", ["math.random"] = "6", ["math.randomseed"] = "6", ["math.sinh"] = "6", ["math.sqrt"] = "6", ["math.tan"] = "6",
+	["math.tointeger"] = "6", ["math.type"] = "6", ["math.ult"] = "6", ["math"] = "6",
 
-	["os.clock"] = "6", ["os.date"] = "6", ["os.difftime"] = "6", ["os.execute"] = "6", ["os.exit"] = "6", ["os.getenv"] = "6", 
+	["os.clock"] = "6", ["os.date"] = "6", ["os.difftime"] = "6", ["os.execute"] = "6", ["os.exit"] = "6", ["os.getenv"] = "6",
 	["os.remove"] = "6", ["os.rename"] = "6", ["os.setlocale"] = "6", ["os.time"] = "6", ["os.tmpname"] = "6", ["os"] = "6",
 
-	["string.byte"] = "6", ["string.char"] = "6", ["string.dump"] = "6", ["string.find"] = "6", ["string.format"] = "6", ["string.gmatch"] = "6", 
-	["string.gsub"] = "6", ["string.len"] = "6", ["string.lower"] = "6", ["string.match"] = "6", ["string.pack"] = "6", ["string.packsize"] = "6", 
-	["string.rep"] = "6", ["string.reverse"] = "6", ["string.sub"] = "6", ["string.unpack"] = "6", ["string.upper"] = "6", ["string"] = "6", 
+	["string.byte"] = "6", ["string.char"] = "6", ["string.dump"] = "6", ["string.find"] = "6", ["string.format"] = "6", ["string.gmatch"] = "6",
+	["string.gsub"] = "6", ["string.len"] = "6", ["string.lower"] = "6", ["string.match"] = "6", ["string.pack"] = "6", ["string.packsize"] = "6",
+	["string.rep"] = "6", ["string.reverse"] = "6", ["string.sub"] = "6", ["string.unpack"] = "6", ["string.upper"] = "6", ["string"] = "6",
 
 	["table.concat"] = "6", ["table.insert"] = "6", ["table.maxn"] = "6", ["table.move"] = "6", ["table.pack"] = "6",
-	["table.remove"] = "6", ["table.sort"] = "6", ["table.unpack"] = "6", ["table"] = "6", 
+	["table.remove"] = "6", ["table.sort"] = "6", ["table.unpack"] = "6", ["table"] = "6",
 
-	["coroutine.create"] = "6", ["coroutine.isyieldable"] = "6", ["coroutine.resume"] = "6", ["coroutine.running"] = "6", 
-	["coroutine.status"] = "6", ["coroutine.wrap"] = "6", ["coroutine.yield"] = "6", ["coroutine"] = "6", 
+	["coroutine.create"] = "6", ["coroutine.isyieldable"] = "6", ["coroutine.resume"] = "6", ["coroutine.running"] = "6",
+	["coroutine.status"] = "6", ["coroutine.wrap"] = "6", ["coroutine.yield"] = "6", ["coroutine"] = "6",
 
 	["debug.debug"] = "6", ["debug.getfenv"] = "6",
-	["debug.gethook"] = "6", ["debug.getinfo"] = "6", ["debug.getlocal"] = "6", ["debug.getmetatable"] = "6", ["debug.getregistry"] = "6", 
-	["debug.getupvalue"] = "6", ["debug.getuservalue"] = "6", ["debug.setfenv"] = "6", ["debug.sethook"] = "6", ["debug.setlocal"] = "6", 
-	["debug.setmetatable"] = "6", ["debug.setupvalue"] = "6", ["debug.setuservalue"] = "6", ["debug.traceback"] = "6", 
-	["debug.upvalueid"] = "6", ["debug.upvaluejoin"] = "6", ["debug"] = "6", 
+	["debug.gethook"] = "6", ["debug.getinfo"] = "6", ["debug.getlocal"] = "6", ["debug.getmetatable"] = "6", ["debug.getregistry"] = "6",
+	["debug.getupvalue"] = "6", ["debug.getuservalue"] = "6", ["debug.setfenv"] = "6", ["debug.sethook"] = "6", ["debug.setlocal"] = "6",
+	["debug.setmetatable"] = "6", ["debug.setupvalue"] = "6", ["debug.setuservalue"] = "6", ["debug.traceback"] = "6",
+	["debug.upvalueid"] = "6", ["debug.upvaluejoin"] = "6", ["debug"] = "6",
 
 	["bit32.arshift"] = "6", ["bit32.band"] = "6",
-	["bit32.bnot"] = "6", ["bit32.bor"] = "6", ["bit32.btest"] = "6", ["bit32.bxor"] = "6", ["bit32.extract"] = "6", ["bit32.replace"] = "6", 
-	["bit32.lrotate"] = "6", ["bit32.lshift"] = "6", ["bit32.rrotate"] = "6", ["bit32.rshift"] = "6", ["bit32"] = "6", ["bit.arshift"] = "6", 
-	["bit.band"] = "6", ["bit.bnot"] = "6", ["bit.bor"] = "6", ["bit.btest"] = "6", ["bit.bxor"] = "6", ["bit.extract"] = "6", 
-	["bit.replace"] = "6", ["bit.lrotate"] = "6", ["bit.lshift"] = "6", ["bit.rrotate"] = "6", ["bit.rshift"] = "6", ["bit"] = "6", 
+	["bit32.bnot"] = "6", ["bit32.bor"] = "6", ["bit32.btest"] = "6", ["bit32.bxor"] = "6", ["bit32.extract"] = "6", ["bit32.replace"] = "6",
+	["bit32.lrotate"] = "6", ["bit32.lshift"] = "6", ["bit32.rrotate"] = "6", ["bit32.rshift"] = "6", ["bit32"] = "6", ["bit.arshift"] = "6",
+	["bit.band"] = "6", ["bit.bnot"] = "6", ["bit.bor"] = "6", ["bit.btest"] = "6", ["bit.bxor"] = "6", ["bit.extract"] = "6",
+	["bit.replace"] = "6", ["bit.lrotate"] = "6", ["bit.lshift"] = "6", ["bit.rrotate"] = "6", ["bit.rshift"] = "6", ["bit"] = "6",
 
-	[":close"] = "6", [":flush"] = "6", [":lines"] = "6", [":read"] = "6", [":seek"] = "6", [":setvbuf"] = "6", [":write"] = "6", 
-	[":byte"] = "6", [":char"] = "6", [":dump"] = "6", [":find"] = "6", [":format"] = "6", [":gmatch"] = "6", [":gsub"] = "6", 
-	[":len"] = "6", [":lower"] = "6", [":match"] = "6", [":pack"] = "6", [":packsize"] = "6", [":rep"] = "6", [":reverse"] = "6", 
+	[":close"] = "6", [":flush"] = "6", [":lines"] = "6", [":read"] = "6", [":seek"] = "6", [":setvbuf"] = "6", [":write"] = "6",
+	[":byte"] = "6", [":char"] = "6", [":dump"] = "6", [":find"] = "6", [":format"] = "6", [":gmatch"] = "6", [":gsub"] = "6",
+	[":len"] = "6", [":lower"] = "6", [":match"] = "6", [":pack"] = "6", [":packsize"] = "6", [":rep"] = "6", [":reverse"] = "6",
 	[":sub"] = "6", [":unpack"] = "6", [":upper"] = "6",
 	--keywords
-	["_ENV"] = "5", ["_G"] = "5", ["_VERSION"] = "5", ["for"] = "5", ["break"] = "5", ["do"] = "5", ["end"] = "5", ["else"] = "5", 
+	["_ENV"] = "5", ["_G"] = "5", ["_VERSION"] = "5", ["for"] = "5", ["break"] = "5", ["do"] = "5", ["end"] = "5", ["else"] = "5",
 	["and"] = "5", ["elseif"] = "5", ["function"] = "5", ["if"] = "5", ["local"] = "5", --[[ ["nil"] = "5", ]] ["not"] = "5", ["or"] = "5",
 	["repeat"] = "5", ["goto"] = "5", ["return"] = "5", ["then"] = "5", ["until"] = "5", ["while"] = "5", ["in"] = "5",
 	--values
-	["true"] = "2", ["false"] = "2", ["nil"] = "2", 
+	["true"] = "2", ["false"] = "2", ["nil"] = "2",
 }
 
 local luaComment = "--"
@@ -813,7 +813,7 @@ local function setclipboard(text)
 	if fakeClipBoard then
 		clipboard = text
 		return
-	end 
+	end
 	local fh = nil
 	local succ, e, msg
 	if windowsClipBoard then
@@ -1003,7 +1003,7 @@ function win:checkCursorScroll()
 		self.scroll = self.cursory - self.termLines
 		self.redraw = true
 	end
-	
+
 	if self.cursorRx < self.colScroll + self.numOffset then
 		self.colScroll = self.cursorRx - self.numOffset
 		self.redraw = true
@@ -1090,7 +1090,7 @@ function win:updateRowSyntaxHighlight(row)
 	while i <= #self.rrows[row] do
 		local c = "1"
 		local symb = self.rrows[row]:sub(i,i)
-		if not self.highlights then 
+		if not self.highlights then
 			c = "1"
 			goto CONTINUE
 		end
@@ -1133,7 +1133,7 @@ function win:updateRowSyntaxHighlight(row)
 				goto CONTINUE
 			end
 		end
-		
+
 		if in_string then
 			if symb == "\\" and i + 1 < #self.rrows[row] then
 				i = i + 1
@@ -1152,7 +1152,7 @@ function win:updateRowSyntaxHighlight(row)
 				goto CONTINUE
 			end
 		end
-		
+
 		if symb == "." then
 			local word = self.rrows[row]:sub(lastsep+1,i)
 			--print(word,lastsep,i)
@@ -1186,11 +1186,11 @@ function win:updateRowSyntaxHighlight(row)
 				goto CONTINUE
 			end
 		end
-		
+
 		if tonumber(symb) and (prev_sep or prev_c == "2") or (tonumber(prev_symb) and symb == ".") then
 			c = "2"
 		end
-		
+
 		if isOperator(symb) then
 			c = "5"
 		end
@@ -1205,7 +1205,7 @@ function win:updateRowSyntaxHighlight(row)
 		res = res..c
 		i = i + 1
 	end
-	
+
 	self.crows[row] = res
 	if self.incomment[row] ~= inmulticomment and row+1 < #self.rows then
 		self.incomment[row] = inmulticomment
@@ -1238,7 +1238,7 @@ function win:rowInsertChar(row,at,char)
 	self.quitTimes = 0
 	self.toscroll = true
 	self:drawLine(self.cursory)
-	
+
 	--add to undo
 	self:addTextCommand(row,at,char)
 end
@@ -1254,8 +1254,8 @@ local function getIndent(str)
 end
 
 function win:insertRow(row,at,noIndent)
-	if #self.rows == 0 then 
-		table.insert(self.rows,"") 
+	if #self.rows == 0 then
+		table.insert(self.rows,"")
 		table.insert(self.rrows,"")
 		table.insert(self.crows,"")
 		table.insert(self.incomment,false)
@@ -1272,7 +1272,7 @@ function win:insertRow(row,at,noIndent)
 	table.insert(self.crows,row+1,"")
 	table.insert(self.incomment,row+1,self.incomment[row])
 	self:setcursorx(#ind+1)
-	
+
 	self.numOffset = #tostring(#self.rows)+2
 	self.cursory = self.cursory + 1
 	--updateRender()
@@ -1282,7 +1282,7 @@ function win:insertRow(row,at,noIndent)
 	self.dirty = true
 	self.quitTimes = 0
 	self.redraw = true
-	
+
 	--undo
 	self:addTextCommand(row,at,"\n"..ind)
 end
@@ -1334,14 +1334,14 @@ function win:insertText(row,at,str)
 	self.dirty = true
 	self.quitTimes = 0
 	self.redraw = true
-	
+
 	self:addTextCommand(row,at,str,#str)
 	self:pushCommand()
 end
 
 function win:rowRemoveChar(row,at)
 	local tr,tc = row,at
-	if at == #self.rows[row] + 2 and row < #self.rows then	
+	if at == #self.rows[row] + 2 and row < #self.rows then
 		row = row + 1
 		at = 1
 	end
@@ -1372,7 +1372,7 @@ function win:rowRemoveChar(row,at)
 	self.dirty = true
 	self.toscroll = true
 	self.quitTimes = 0
-	
+
 	if #removedchar > 0 then self:removeTextCommand(tr,tc,removedchar) end
 end
 
@@ -1409,18 +1409,6 @@ function win:getLastSeperatorInRow(char,row)
 	if char-1 == pos then pos = pos - 1 end
 	if pos == 1 then return 1 end
 	return pos+1
-end
-
-local function copyTable(tab)
-	local t = {}
-	if type(tab) == "table" then
-		for i,k in pairs(tab) do
-			t[i] = k
-		end
-	else
-		t = tab
-	end
-	return t
 end
 
 function win:searchCallback(querry,key)
@@ -1481,10 +1469,10 @@ function win:search()
 	self.si.selectionStart = copyTable(self.selectionStart)
 	self.si.selectionEnd = copyTable(self.selectionEnd)
 	self.si.selecting = self.selecting
-	
+
 	self.si.lastMatch = 0
 	local searchTerm = self:prompt("search for >",self.searchCallback)
-	
+
 	if not searchTerm then
 		self.cursorx = self.si.cx
 		self.cursory = self.si.cy
@@ -1648,9 +1636,9 @@ local function newWindow()--sets defaults
 	self.selectionStart = {}
 	self.selectionEnd = {}
 	self.selecting = false
-	
+
 	self.errline = {-1,""}
-	
+
 	self.colors = themes.monokai
 	--self.colors = themes.tomorrowNight
 	--self.colors = themes.tomorrowNightBright
@@ -1715,7 +1703,7 @@ local function parseInput(char)
 				b = getNextByte()
 			end
 			command = b
-			if #n > 0 then 
+			if #n > 0 then
 				table.insert(args,tonumber(n))
 			end
 		else
@@ -1736,7 +1724,7 @@ local function handleKeyInput(charIn)
 	local w = windows[currentWindow]
 	if w.welcome then w.redraw = true end
 	w.welcome = false
-	
+
 	if args == nil and prefix == nil and a ~= nil then
 		if string.byte(a) >= 32 and string.byte(a) < 127 then
 			if w.selecting then
@@ -1796,7 +1784,7 @@ local function handleKeyInput(charIn)
 				if windows[i].dirty then dirty = true ; break end
 			end
 			if dirty then
-				w.message = "Changes haven't been saved, press ctrl+q "..w.quitConfTimes-w.quitTimes.." more times to quit without saving" 
+				w.message = "Changes haven't been saved, press ctrl+q "..w.quitConfTimes-w.quitTimes.." more times to quit without saving"
 				if w.quitTimes == w.quitConfTimes then
 					running = false
 				end
@@ -1886,7 +1874,7 @@ local function handleKeyInput(charIn)
 				currentWindow = id
 				local node = getNodeByID(tree,currentWindow)
 				node.h = true
-				updateSize(node,w.termCols,w.realTermLines,w.x,w.y)	
+				updateSize(node,w.termCols,w.realTermLines,w.x,w.y)
 				w.message = ""
 			elseif com == "hsplit" then
 				local newWin = newWindow()
@@ -1952,7 +1940,7 @@ local function handleKeyInput(charIn)
 						end
 					end
 				end
-			elseif numwin > 1 then 
+			elseif numwin > 1 then
 				w.message = "document not saved, please save then exit or press again to close anyway"
 				w.quitTimes = w.quitTimes + 1
 			end
@@ -2047,7 +2035,7 @@ local function handleKeyInput(charIn)
 			w.selecting = false
 			if not args then
 				--idk
-			elseif args[1] == 1 then --home 
+			elseif args[1] == 1 then --home
 				w:pushCommand()
 				local fns = w:findFirstNonSeperator(w.cursory)
 				if w.cursorx == fns then
@@ -2154,7 +2142,7 @@ local function handleKeyInput(charIn)
 					w:setcursorx(#w.rows[w.cursory]+1)
 					w.targetx = w.cursorx
 					w.selectionEnd = {w.cursorx,w.cursory}
-				end	
+				end
 				w.redraw = true
 			else--end
 				w:setcursorx(#w.rows[w.cursory]+1)
@@ -2174,7 +2162,7 @@ local function handleKeyInput(charIn)
 				if a2 >= 2 then isAlt = true; a2 = a2-2 end
 				if a2 >= 1 then isShift = true; a2 = a2-1 end
 			end
-			
+
 			if not w.selecting and isShift then
 				w.selectionStart = {w.cursorx,w.cursory}
 				if a == "A" then--up
@@ -2280,7 +2268,7 @@ local function handleKeyInput(charIn)
 		if args[1] >= 16 then isControl = true ; args[1] = args[1] - 16 end
 		if args[1] >= 8 then isMeta     = true ; args[1] = args[1] - 8 end
 		if args[1] >= 4 then isShift    = true ; args[1] = args[1] - 4 end
-		
+
 		if ex then
 			local di = true
 			if not (args[2] > w.x and args[2] <= w.x+w.termCols and args[3] > w.y and args[3] <= w.y+w.termLines) then
@@ -2297,7 +2285,7 @@ local function handleKeyInput(charIn)
 				if #w.rows > 0 then--mouse wheel up scroll up
 					local ws = w.scroll
 					w.scroll = math.max(w.scroll - 3,0)
-					
+
 					if #windows < 2 and ws > 2 then
 						io.write(esc.."H"..csi.."M"..csi.."M"..csi.."M")
 						w:drawLine(w.scroll+1)
@@ -2425,7 +2413,7 @@ function win:genLine(y)
 			str=str..fgCol(150,0,0).."~"..fgCol(255,255,255)
 			str=str..string.rep(" ",self.termCols-1)
 		end
-		
+
 	else
 		local line = y + self.scroll
 		local li = self.rrows[line]
@@ -2442,8 +2430,8 @@ function win:genLine(y)
 		str = str..bg
 
 		--trimming
-		if self.colScroll > #li then 
-			li = "" 
+		if self.colScroll > #li then
+			li = ""
 			ci = ""
 		else
 			li = li:sub(self.colScroll+1)
@@ -2453,14 +2441,14 @@ function win:genLine(y)
 		local ll = true
 		if #li+self.numOffset > self.termCols then li = li:sub(1,self.termCols-self.numOffset)..">" ; ll = false end
 		if #li+self.numOffset > self.termCols then ci = ci:sub(1,self.termCols-self.numOffset).."9" end
-		
+
 		local isselecting = false
 
 		if self.selecting and (self.selectionStart[1] == self.selectionEnd[1] and self.selectionStart[2] == self.selectionEnd[2]) then
 			self.selecting = false
 		elseif (self.selecting and self.selectionStart[2] > line and self.selectionEnd[2] < line) or (self.selecting and self.selectionStart[2] < line and self.selectionEnd[2] > line) then
 			--whole line is selected
-			
+
 			str = str..bgCol(255,255,255)..fgCol(0,0,0)
 			str = str..li
 			if ll then str = str.." " end
@@ -2470,9 +2458,9 @@ function win:genLine(y)
 			--if whole selection is on one line
 			local f,e = 0,0
 			if self.selectionStart[1] > self.selectionEnd[1] then
-				f,e = self.selectionEnd[1],self.selectionStart[1] 
-			else 
-				f,e = self.selectionStart[1],self.selectionEnd[1] 
+				f,e = self.selectionEnd[1],self.selectionStart[1]
+			else
+				f,e = self.selectionStart[1],self.selectionEnd[1]
 				self.cursorRx = self.cursorRx - 1
 			end
 			f,e = self:CxtoRx(line,f),self:CxtoRx(line,e)
@@ -2493,7 +2481,7 @@ function win:genLine(y)
 				end
 				if not sel then
 					local c = ci:sub(i,i)
-					if c ~= currentColor then 
+					if c ~= currentColor then
 						str = str..self:syntaxColor(c)
 						currentColor = c
 					end
@@ -2519,7 +2507,7 @@ function win:genLine(y)
 				end
 				if not sel then
 					local c = ci:sub(i,i)
-					if c ~= currentColor then 
+					if c ~= currentColor then
 						str = str..self:syntaxColor(c)
 						currentColor = c
 					end
@@ -2554,7 +2542,7 @@ function win:genLine(y)
 				end
 				if not sel then
 					local c = ci:sub(i,i)
-					if c ~= currentColor then 
+					if c ~= currentColor then
 						str = str..self:syntaxColor(c)
 						currentColor = c
 					end
@@ -2575,7 +2563,7 @@ function win:genLine(y)
 			for i = 1,#li do
 				local s = li:sub(i,i)
 				local c = ci:sub(i,i)
-				if c ~= currentColor then 
+				if c ~= currentColor then
 					if not tonumber(c) then error(c) end
 					str = str..self:syntaxColor(c)
 					currentColor = c
@@ -2583,13 +2571,13 @@ function win:genLine(y)
 				str = str..s
 			end
 		end
-		
-		if self.tmux or #windows > 1 then 
+
+		if self.tmux or #windows > 1 then
 			str = str..bg..string.rep(" ",self.termCols-self.numOffset-#li+add)
 		else
 			str = str..bg..esc.."K"
 		end
-		
+
 		str = str..fgCol(255,255,255)
 	end
 	return str
@@ -2648,15 +2636,15 @@ function win:drawStatusBar()
 	--str = str.."      "..self.x..","..self.y
 	str = str.."  id:"..self.id.."/"..#windows
 	if node then str = str.."  offset:"..node.offset end
-	
+
 	str = str.." "..self.cursorx..","..self.cursory.." "
-	
+
 	if self.selecting then
 		str = str.."   selecting from "
 		str = str..self.selectionStart[1]..","..self.selectionStart[2].." to "
 		str = str..self.selectionEnd[1]..","..self.selectionEnd[2]
 	end
-	
+
 	--undo/redo info
 	--[[
 	str = str.." "..#self.undoStack
@@ -2848,7 +2836,7 @@ local function main()
 		setrawmode()
 		ccax,ccay = getcurpos()
 		--drawScreen()
-		
+
 		local w = windows[1]
 		w.x = 1
 		th,tw = getScreenSize()
@@ -2873,7 +2861,7 @@ local function main()
 		--	line = 1
 		--	goto END
 		--end
-		
+
 		w:drawScreen()
 		--renderTree(windows)
 		while running do
@@ -2895,7 +2883,6 @@ local function main()
 						--	line = 4
 						--	break
 						--end
-						
 					end
 				end
 				--windows[currentWindow].drawScreen(windows[currentWindow])
@@ -2907,7 +2894,7 @@ local function main()
 				--end
 			end
 		end
-	else	
+	else
 		print("could not save mode")
 		print(err,msg)
 	end
@@ -2919,7 +2906,7 @@ local function main()
 	--show cursor
 	io.write(esc.."?25h")
 	setCursor(ccax,ccay)
-	
+
 	setsanemode()
 	restoremode(origMode)
 	if priv then
