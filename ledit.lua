@@ -102,7 +102,7 @@
 		
 ]]
 
-function printTable(tabl, wid)
+local function printTable(tabl, wid)
 	if not wid then wid = 1 end
 	--if wid > 1 then return end
 	for i,v in pairs(tabl) do
@@ -122,19 +122,30 @@ function printTable(tabl, wid)
 	end 
 end
 
+--state
+local running = true
+local currentWindow = 1--window input should be affecting
+local clear = true
+local windows = {}
+local buffers = {}
+--windows = newWindow()
+--windows[1].filename = "ledit.lua"
+local ags = {...}
+local origMode = ""
+local th,tw
+
 --config
 
-stty = "stty"
+local stty = "stty"
 
---csi = "\x1b"
-csi = string.char(0x1b)
-esc = csi.."["
-endl = "\r\n"
+local csi = "\x1b"
+local esc = csi.."["
+local endl = "\r\n"
 
 
-clipboard = ""
-fakeClipBoard = false
-windowsClipBoard = false
+local clipboard = ""
+local fakeClipBoard = false
+local windowsClipBoard = false
 
 --[[template
 [""] = {
@@ -154,7 +165,7 @@ windowsClipBoard = false
 ]]
 
 
-themes = {
+local themes = {
 ["monokai"] = {
 	[0] = { 40, 40, 40},--background
 		  {255,255,255},--foreground 1
@@ -216,27 +227,27 @@ themes = {
 --end of config
 
 --window class
-win = {}
+local win = {}
 
-tree = {}
-function newNode(left,right)
+local tree = {}
+local function newNode(left,right)
 	return {["left"] = left,["right"] = right}
 end
 
-function isLeaf(node)
+local function isLeaf(node)
 	if not node.left and not node.right and node.id then
 		return true
 	end
 	return false
 end
-function isNode(node)
+local function isNode(node)
 	if node.left and node.right and not node.id then
 		return true
 	end
 	return false
 end
 
-function insertLeft(node,nodeID)
+local function insertLeft(node,nodeID)
 	if isLeaf(node) then
 		node.left = {["id"] = nodeID}
 		node.right = {["id"] = node.id}
@@ -245,7 +256,7 @@ function insertLeft(node,nodeID)
 	end
 	return false
 end
-function insertRight(node,nodeID)
+local function insertRight(node,nodeID)
 	if isLeaf(node) then
 		node.left = {["id"] = node.id}
 		node.right = {["id"] = nodeID}
@@ -254,7 +265,7 @@ function insertRight(node,nodeID)
 	return node
 end
 
-function removeLeft(node)
+local function removeLeft(node)
 	if not isLeaf(node) then
 		node.left = nil
 		if isNode(node.right) then
@@ -267,7 +278,7 @@ function removeLeft(node)
 		end
 	end
 end
-function removeRight(node)
+local function removeRight(node)
 	if not isLeaf(node) then
 		node.right = nil
 		if isNode(node.left) then
@@ -283,7 +294,7 @@ end
 
 --adjust the size for a node and all it's children
 --recursive funciton
-function updateSize(node,width,height,x,y)
+local function updateSize(node,width,height,x,y)
 	if not width then width = node.width end
 	if not height then height = node.height end
 	if not x then x = node.x end
@@ -351,7 +362,7 @@ function updateSize(node,width,height,x,y)
 end
 
 --traverse the tree to find the window with the id we want
-function getLeafByID(tree,id)
+local function getLeafByID(tree,id)
 	if not id then error("id expected got nil") end
 	if isLeaf(tree) then
 		if id == tree.id then
@@ -370,7 +381,7 @@ function getLeafByID(tree,id)
 	return false
 end
 
-function getNodeByID(tree,id)
+local function getNodeByID(tree,id)
 	if not id then error("id expected got nil") end
 	if isNode(tree) then
 		if isNode(tree.left) then
@@ -409,10 +420,22 @@ delete selection is just delete command
 etc.
 ]]
 
-function sleep(n)
+local function sleep(n)
 	local clock = os.clock
 	local t0 = clock()
 	while clock() - t0 <= n do end
+end
+
+local function copyTable(tab)
+	local t = {}
+	if type(tab) == "table" then
+		for i,k in pairs(tab) do
+			t[i] = k
+		end
+	else
+		t = tab
+	end
+	return t
 end
 
 function win:pushCommandPart()
@@ -572,98 +595,98 @@ function win:removeTextCommand(row,col,text)
 	end
 end
 
-luahighlights = {
---special
-["self."] = "2", ["self"] = "2",
+local luahighlights = {
+	--special
+	["self."] = "2", ["self"] = "2",
 
---builtins
-["assert"] = "6", ["collectgarbage"] = "6", ["dofile"] = "6", ["error"] = "6", ["getfenv"] = "6", ["getmetatable"] = "6", 
-["ipairs"] = "6", ["load"] = "6", ["loadfile"] = "6", ["module"] = "6", ["next"] = "6", ["pairs"] = "6", ["pcall"] = "6", 
-["print"] = "6", ["rawequal"] = "6", ["rawget"] = "6", ["rawlen"] = "6", ["rawset"] = "6", ["require"] = "6", ["select"] = "6", 
-["setfenv"] = "6", ["setmetatable"] = "6", ["tonumber"] = "6", ["tostring"] = "6", ["type"] = "6", ["unpack"] = "6", ["xpcall"] = "6",
+	--builtins
+	["assert"] = "6", ["collectgarbage"] = "6", ["dofile"] = "6", ["error"] = "6", ["getfenv"] = "6", ["getmetatable"] = "6", 
+	["ipairs"] = "6", ["load"] = "6", ["loadfile"] = "6", ["module"] = "6", ["next"] = "6", ["pairs"] = "6", ["pcall"] = "6", 
+	["print"] = "6", ["rawequal"] = "6", ["rawget"] = "6", ["rawlen"] = "6", ["rawset"] = "6", ["require"] = "6", ["select"] = "6", 
+	["setfenv"] = "6", ["setmetatable"] = "6", ["tonumber"] = "6", ["tostring"] = "6", ["type"] = "6", ["unpack"] = "6", ["xpcall"] = "6",
 
-["io.close"] = "6", ["io.flush"] = "6", ["io.input"] = "6", ["io.lines"] = "6", ["io.open"] = "6", ["io.output"] = "6", 
-["io.popen"] = "6", ["io.read"] = "6", ["io.tmpfile"] = "6", ["io.type"] = "6", ["io.write"] = "6", ["io"] = "6", 
+	["io.close"] = "6", ["io.flush"] = "6", ["io.input"] = "6", ["io.lines"] = "6", ["io.open"] = "6", ["io.output"] = "6", 
+	["io.popen"] = "6", ["io.read"] = "6", ["io.tmpfile"] = "6", ["io.type"] = "6", ["io.write"] = "6", ["io"] = "6", 
 
-["math.abs"] = "6", ["math.acos"] = "6", ["math.asin"] = "6", ["math.atan2"] = "6", ["math.atan"] = "6", ["math.ceil"] = "6", 
-["math.cosh"] = "6", ["math.cos"] = "6", ["math.deg"] = "6", ["math.exp"] = "6", ["math.floor"] = "6", ["math.fmod"] = "6", 
-["math.frexp"] = "6", ["math.huge"] = "6", ["math.ldexp"] = "6", ["math.log10"] = "6", ["math.log"] = "6", ["math.max"] = "6", 
-["math.maxinteger"] = "6", ["math.min"] = "6", ["math.mininteger"] = "6", ["math.modf"] = "6", ["math.pi"] = "6", ["math.pow"] = "6", 
-["math.rad"] = "6", ["math.random"] = "6", ["math.randomseed"] = "6", ["math.sinh"] = "6", ["math.sqrt"] = "6", ["math.tan"] = "6", 
-["math.tointeger"] = "6", ["math.type"] = "6", ["math.ult"] = "6", ["math"] = "6", 
+	["math.abs"] = "6", ["math.acos"] = "6", ["math.asin"] = "6", ["math.atan2"] = "6", ["math.atan"] = "6", ["math.ceil"] = "6", 
+	["math.cosh"] = "6", ["math.cos"] = "6", ["math.deg"] = "6", ["math.exp"] = "6", ["math.floor"] = "6", ["math.fmod"] = "6", 
+	["math.frexp"] = "6", ["math.huge"] = "6", ["math.ldexp"] = "6", ["math.log10"] = "6", ["math.log"] = "6", ["math.max"] = "6", 
+	["math.maxinteger"] = "6", ["math.min"] = "6", ["math.mininteger"] = "6", ["math.modf"] = "6", ["math.pi"] = "6", ["math.pow"] = "6", 
+	["math.rad"] = "6", ["math.random"] = "6", ["math.randomseed"] = "6", ["math.sinh"] = "6", ["math.sqrt"] = "6", ["math.tan"] = "6", 
+	["math.tointeger"] = "6", ["math.type"] = "6", ["math.ult"] = "6", ["math"] = "6", 
 
-["os.clock"] = "6", ["os.date"] = "6", ["os.difftime"] = "6", ["os.execute"] = "6", ["os.exit"] = "6", ["os.getenv"] = "6", 
-["os.remove"] = "6", ["os.rename"] = "6", ["os.setlocale"] = "6", ["os.time"] = "6", ["os.tmpname"] = "6", ["os"] = "6",
+	["os.clock"] = "6", ["os.date"] = "6", ["os.difftime"] = "6", ["os.execute"] = "6", ["os.exit"] = "6", ["os.getenv"] = "6", 
+	["os.remove"] = "6", ["os.rename"] = "6", ["os.setlocale"] = "6", ["os.time"] = "6", ["os.tmpname"] = "6", ["os"] = "6",
 
-["string.byte"] = "6", ["string.char"] = "6", ["string.dump"] = "6", ["string.find"] = "6", ["string.format"] = "6", ["string.gmatch"] = "6", 
-["string.gsub"] = "6", ["string.len"] = "6", ["string.lower"] = "6", ["string.match"] = "6", ["string.pack"] = "6", ["string.packsize"] = "6", 
-["string.rep"] = "6", ["string.reverse"] = "6", ["string.sub"] = "6", ["string.unpack"] = "6", ["string.upper"] = "6", ["string"] = "6", 
+	["string.byte"] = "6", ["string.char"] = "6", ["string.dump"] = "6", ["string.find"] = "6", ["string.format"] = "6", ["string.gmatch"] = "6", 
+	["string.gsub"] = "6", ["string.len"] = "6", ["string.lower"] = "6", ["string.match"] = "6", ["string.pack"] = "6", ["string.packsize"] = "6", 
+	["string.rep"] = "6", ["string.reverse"] = "6", ["string.sub"] = "6", ["string.unpack"] = "6", ["string.upper"] = "6", ["string"] = "6", 
 
-["table.concat"] = "6", ["table.insert"] = "6", ["table.maxn"] = "6", ["table.move"] = "6", ["table.pack"] = "6",
-["table.remove"] = "6", ["table.sort"] = "6", ["table.unpack"] = "6", ["table"] = "6", 
+	["table.concat"] = "6", ["table.insert"] = "6", ["table.maxn"] = "6", ["table.move"] = "6", ["table.pack"] = "6",
+	["table.remove"] = "6", ["table.sort"] = "6", ["table.unpack"] = "6", ["table"] = "6", 
 
-["coroutine.create"] = "6", ["coroutine.isyieldable"] = "6", ["coroutine.resume"] = "6", ["coroutine.running"] = "6", 
-["coroutine.status"] = "6", ["coroutine.wrap"] = "6", ["coroutine.yield"] = "6", ["coroutine"] = "6", 
+	["coroutine.create"] = "6", ["coroutine.isyieldable"] = "6", ["coroutine.resume"] = "6", ["coroutine.running"] = "6", 
+	["coroutine.status"] = "6", ["coroutine.wrap"] = "6", ["coroutine.yield"] = "6", ["coroutine"] = "6", 
 
-["debug.debug"] = "6", ["debug.getfenv"] = "6",
-["debug.gethook"] = "6", ["debug.getinfo"] = "6", ["debug.getlocal"] = "6", ["debug.getmetatable"] = "6", ["debug.getregistry"] = "6", 
-["debug.getupvalue"] = "6", ["debug.getuservalue"] = "6", ["debug.setfenv"] = "6", ["debug.sethook"] = "6", ["debug.setlocal"] = "6", 
-["debug.setmetatable"] = "6", ["debug.setupvalue"] = "6", ["debug.setuservalue"] = "6", ["debug.traceback"] = "6", 
-["debug.upvalueid"] = "6", ["debug.upvaluejoin"] = "6", ["debug"] = "6", 
+	["debug.debug"] = "6", ["debug.getfenv"] = "6",
+	["debug.gethook"] = "6", ["debug.getinfo"] = "6", ["debug.getlocal"] = "6", ["debug.getmetatable"] = "6", ["debug.getregistry"] = "6", 
+	["debug.getupvalue"] = "6", ["debug.getuservalue"] = "6", ["debug.setfenv"] = "6", ["debug.sethook"] = "6", ["debug.setlocal"] = "6", 
+	["debug.setmetatable"] = "6", ["debug.setupvalue"] = "6", ["debug.setuservalue"] = "6", ["debug.traceback"] = "6", 
+	["debug.upvalueid"] = "6", ["debug.upvaluejoin"] = "6", ["debug"] = "6", 
 
-["bit32.arshift"] = "6", ["bit32.band"] = "6",
-["bit32.bnot"] = "6", ["bit32.bor"] = "6", ["bit32.btest"] = "6", ["bit32.bxor"] = "6", ["bit32.extract"] = "6", ["bit32.replace"] = "6", 
-["bit32.lrotate"] = "6", ["bit32.lshift"] = "6", ["bit32.rrotate"] = "6", ["bit32.rshift"] = "6", ["bit32"] = "6", ["bit.arshift"] = "6", 
-["bit.band"] = "6", ["bit.bnot"] = "6", ["bit.bor"] = "6", ["bit.btest"] = "6", ["bit.bxor"] = "6", ["bit.extract"] = "6", 
-["bit.replace"] = "6", ["bit.lrotate"] = "6", ["bit.lshift"] = "6", ["bit.rrotate"] = "6", ["bit.rshift"] = "6", ["bit"] = "6", 
+	["bit32.arshift"] = "6", ["bit32.band"] = "6",
+	["bit32.bnot"] = "6", ["bit32.bor"] = "6", ["bit32.btest"] = "6", ["bit32.bxor"] = "6", ["bit32.extract"] = "6", ["bit32.replace"] = "6", 
+	["bit32.lrotate"] = "6", ["bit32.lshift"] = "6", ["bit32.rrotate"] = "6", ["bit32.rshift"] = "6", ["bit32"] = "6", ["bit.arshift"] = "6", 
+	["bit.band"] = "6", ["bit.bnot"] = "6", ["bit.bor"] = "6", ["bit.btest"] = "6", ["bit.bxor"] = "6", ["bit.extract"] = "6", 
+	["bit.replace"] = "6", ["bit.lrotate"] = "6", ["bit.lshift"] = "6", ["bit.rrotate"] = "6", ["bit.rshift"] = "6", ["bit"] = "6", 
 
-[":close"] = "6", [":flush"] = "6", [":lines"] = "6", [":read"] = "6", [":seek"] = "6", [":setvbuf"] = "6", [":write"] = "6", 
-[":byte"] = "6", [":char"] = "6", [":dump"] = "6", [":find"] = "6", [":format"] = "6", [":gmatch"] = "6", [":gsub"] = "6", 
-[":len"] = "6", [":lower"] = "6", [":match"] = "6", [":pack"] = "6", [":packsize"] = "6", [":rep"] = "6", [":reverse"] = "6", 
-[":sub"] = "6", [":unpack"] = "6", [":upper"] = "6",
---keywords
-["_ENV"] = "5", ["_G"] = "5", ["_VERSION"] = "5", ["for"] = "5", ["break"] = "5", ["do"] = "5", ["end"] = "5", ["else"] = "5", 
-["and"] = "5", ["elseif"] = "5", ["function"] = "5", ["if"] = "5", ["local"] = "5", ["nil"] = "5", ["not"] = "5", ["or"] = "5",
-["repeat"] = "5", ["goto"] = "5", ["return"] = "5", ["then"] = "5", ["until"] = "5", ["while"] = "5", ["in"] = "5",
---values
-["true"] = "2", ["false"] = "2", ["nil"] = "2", 
+	[":close"] = "6", [":flush"] = "6", [":lines"] = "6", [":read"] = "6", [":seek"] = "6", [":setvbuf"] = "6", [":write"] = "6", 
+	[":byte"] = "6", [":char"] = "6", [":dump"] = "6", [":find"] = "6", [":format"] = "6", [":gmatch"] = "6", [":gsub"] = "6", 
+	[":len"] = "6", [":lower"] = "6", [":match"] = "6", [":pack"] = "6", [":packsize"] = "6", [":rep"] = "6", [":reverse"] = "6", 
+	[":sub"] = "6", [":unpack"] = "6", [":upper"] = "6",
+	--keywords
+	["_ENV"] = "5", ["_G"] = "5", ["_VERSION"] = "5", ["for"] = "5", ["break"] = "5", ["do"] = "5", ["end"] = "5", ["else"] = "5", 
+	["and"] = "5", ["elseif"] = "5", ["function"] = "5", ["if"] = "5", ["local"] = "5", --[[ ["nil"] = "5", ]] ["not"] = "5", ["or"] = "5",
+	["repeat"] = "5", ["goto"] = "5", ["return"] = "5", ["then"] = "5", ["until"] = "5", ["while"] = "5", ["in"] = "5",
+	--values
+	["true"] = "2", ["false"] = "2", ["nil"] = "2", 
 }
 
-luaComment = "--"
-luaMultiComment = {"--[[","]]"}
+local luaComment = "--"
+local luaMultiComment = {"--[[","]]"}
 
-chighlights = {
---keywords
-["if"] = "5", ["switch"] = "5", ["while"] = "5", ["for"] = "5", ["break"] = "5", ["continue"] = "5", ["return"] = "5", ["else"] = "5",
-["struct"] = "5", ["union"] = "5", ["typedef"] = "5", ["static"] = "5", ["enum"] = "5", ["class"] = "5", ["case"] = "5",
-["cost"] = "5",
---types
-["int8"] = "6", ["int16"] = "6", ["int32"] = "6", ["int64"] = "6",
-["uint8"] = "6", ["uint16"] = "6", ["uint32"] = "6", ["uint64"] = "6",
-["int"] = "6", ["long"] = "6", ["double"] = "6", ["float"] = "6", ["char"] = "6", ["unsigned"] = "6", ["signed"] = "6", ["void"] = "6",
-["short"] = "6", ["size_t"] = "6", ["ssize_t"] = "6", ["sizeof"] = "6", ["extern"] = "6", ["false"] = "6", ["true"] = "6",
+local chighlights = {
+	--keywords
+	["if"] = "5", ["switch"] = "5", ["while"] = "5", ["for"] = "5", ["break"] = "5", ["continue"] = "5", ["return"] = "5", ["else"] = "5",
+	["struct"] = "5", ["union"] = "5", ["typedef"] = "5", ["static"] = "5", ["enum"] = "5", ["class"] = "5", ["case"] = "5",
+	["cost"] = "5",
+	--types
+	["int8"] = "6", ["int16"] = "6", ["int32"] = "6", ["int64"] = "6",
+	["uint8"] = "6", ["uint16"] = "6", ["uint32"] = "6", ["uint64"] = "6",
+	["int"] = "6", ["long"] = "6", ["double"] = "6", ["float"] = "6", ["char"] = "6", ["unsigned"] = "6", ["signed"] = "6", ["void"] = "6",
+	["short"] = "6", ["size_t"] = "6", ["ssize_t"] = "6", ["sizeof"] = "6", ["extern"] = "6", ["false"] = "6", ["true"] = "6",
 }
-cpphighlights = {
---keywords
-["if"] = "5", ["switch"] = "5", ["while"] = "5", ["for"] = "5", ["break"] = "5", ["continue"] = "5", ["return"] = "5", ["else"] = "5",
-["struct"] = "5", ["union"] = "5", ["typedef"] = "5", ["static"] = "5", ["enum"] = "5", ["class"] = "5", ["case"] = "5",
-["cost"] = "5", ["auto"] = "5", ["goto"] = "5", ["default"] = "5", ["try"] = "5", ["catch"] = "5", ["throw"] = "5",
-["new"] = "5", ["delete"] = "5", [""] = "5",
---types
-["int8"] = "6", ["int16"] = "6", ["int32"] = "6", ["int64"] = "6",
-["uint8"] = "6", ["uint16"] = "6", ["uint32"] = "6", ["uint64"] = "6",
-["int"] = "6", ["long"] = "6", ["double"] = "6", ["float"] = "6", ["char"] = "6", ["unsigned"] = "6", ["signed"] = "6", ["void"] = "6",
-["short"] = "6", ["size_t"] = "6", ["ssize_t"] = "6", ["sizeof"] = "6", ["extern"] = "6", ["false"] = "6", ["true"] = "6",
+local cpphighlights = {
+	--keywords
+	["if"] = "5", ["switch"] = "5", ["while"] = "5", ["for"] = "5", ["break"] = "5", ["continue"] = "5", ["return"] = "5", ["else"] = "5",
+	["struct"] = "5", ["union"] = "5", ["typedef"] = "5", ["static"] = "5", ["enum"] = "5", --[[ ["class"] = "5", ]] ["case"] = "5",
+	["cost"] = "5", ["auto"] = "5", ["goto"] = "5", ["default"] = "5", ["try"] = "5", ["catch"] = "5", ["throw"] = "5",
+	["new"] = "5", ["delete"] = "5", [""] = "5",
+	--types
+	["int8"] = "6", ["int16"] = "6", ["int32"] = "6", ["int64"] = "6",
+	["uint8"] = "6", ["uint16"] = "6", ["uint32"] = "6", ["uint64"] = "6",
+	["int"] = "6", ["long"] = "6", ["double"] = "6", ["float"] = "6", ["char"] = "6", ["unsigned"] = "6", ["signed"] = "6", ["void"] = "6",
+	["short"] = "6", ["size_t"] = "6", ["ssize_t"] = "6", ["sizeof"] = "6", ["extern"] = "6", --[[ ["false"] = "6", ["true"] = "6", ]]
 
-["class"] = "6", ["namespace"] = "6", ["template"] = "6", ["public"] = "6", ["private"] = "6", ["protected"] = "6", ["typename"] = "6", ["const"] = "6",
-["this"] = "6", ["friend"] = "6", ["virtual"] = "6", ["using"] = "6", ["mutable"] = "6", ["volatile"] = "6", ["register"] = "6", ["explicit"] = "6",
---values
-["true"] = "2", ["false"] = "2", ["NULL"] = "2", 
+	["class"] = "6", ["namespace"] = "6", ["template"] = "6", ["public"] = "6", ["private"] = "6", ["protected"] = "6", ["typename"] = "6", ["const"] = "6",
+	["this"] = "6", ["friend"] = "6", ["virtual"] = "6", ["using"] = "6", ["mutable"] = "6", ["volatile"] = "6", ["register"] = "6", ["explicit"] = "6",
+	--values
+	["true"] = "2", ["false"] = "2", ["NULL"] = "2",
 }
-cComment = "//"
-cMultiComment = {"/*","*/"}
+local cComment = "//"
+local cMultiComment = {"/*","*/"}
 
-goHighlights = {
+local goHighlights = {
 	--keywords
 	["if"] = "5", ["else"] = "5", ["for"] = "5", ["switch"] = "5", ["func"] = "5",
 	["break"] = "5", ["case"] = "5", ["continue"] = "5", ["default"] = "5", ["go"] = "5", ["goto"] = "5", ["range"] = "5", ["return"] = "5",
@@ -679,21 +702,17 @@ goHighlights = {
 	--litterals
 	["true"] = "2", ["false"] = "2", ["nil"] = "2",
 }
-goComment = "//"
-goMultiComment = {"/*","*/"}
+local goComment = "//"
+local goMultiComment = {"/*","*/"}
 
 
 function win:checkFile()
 	if self.filename:sub(#self.filename-3) == ".lua" then
-		local f = io.open(self.filename,"r")
-		local a,err
-		if _VERSION == "Lua 5.1" then
-			a,err = loadstring(f:read("*a"))
-		else
-			a,err = load(f:read("*a"))
-		end
+		local f,err = io.open(self.filename,"r")
+		if not f then error("could not read file") end
+		_,err = load(f:read("*a"))
 		f:close()
-		if not a then
+		if err then
 			local line = err:match("at line (%d+)%)")
 			if not line then
 				line = err:match(":(%d+):")
@@ -707,19 +726,19 @@ function win:checkFile()
 	end
 end
 
-log = false
-function startLog(filename)
+local log = nil
+local function startLog(filename)
 	if not log then
 		log = io.open(filename,"w")
 	end
 end
-function endLog(filename)
+local function endLog(filename)
 	if log then
 		log:close()
 		log = false
 	end
 end
-function printLog(msg)
+local function printLog(msg,...)
 	if log then
 		log:write(msg.."\n")
 		log:flush()
@@ -729,32 +748,37 @@ end
 function string:split(delimiter)
   local result = { }
   local from  = 1
+---@diagnostic disable-next-line: param-type-mismatch
   local delim_from, delim_to = string.find( self, delimiter, from  )
   while delim_from do
+	---@diagnostic disable-next-line: param-type-mismatch
 	table.insert( result, string.sub( self, from , delim_from-1 ) )
 	from  = delim_to + 1
+	---@diagnostic disable-next-line: param-type-mismatch
 	delim_from, delim_to = string.find( self, delimiter, from  )
   end
+  ---@diagnostic disable-next-line: param-type-mismatch
   table.insert( result, string.sub( self, from	) )
   return result
 end
 
-function setrawmode()
+local function setrawmode()
 	--io.write("\x1b[?1000h\x1b[?1002h\x1b[?1015h\x1b[?1006h")
-	--io.write("\x1b[?1000h\x1b[?1002h\x1b[?1006h")
-	io.write(csi.."[?1000h"..csi.."[?1002h"..csi.."[?1006h")
+	io.write("\x1b[?1000h\x1b[?1002h\x1b[?1006h")
 	--os.execute("tput smkx")
 	return os.execute(stty.." raw -iexten -echo 2> /dev/null")
 end
-function setsanemode()
+local function setsanemode()
 	--io.write("\x1b[?1006l\x1b[?1015l\x1b[?1002l\x1b[?1000l")
-	--io.write("\x1b[?1006l\x1b[?1002l\x1b[?1000l")
-	io.write(csi.."[?1006l"..csi.."[?1002l"..csi.."[?1000l")
+	io.write("\x1b[?1006l\x1b[?1002l\x1b[?1000l")
 	--io.write("\x1b[?1000l\x1b[?1002l\x1b[?1006l")
 	return os.execute(stty.." sane")
 end
-function savemode()
+
+---@return string,string|nil,integer|nil
+local function savemode()
 	local fh = io.popen(stty .. " -g")
+	if not fh then error("could not read from stty") end
 	local mode = fh:read('*a')
 	local succ, e, msg = fh:close()
 	return succ and mode or nil, e, msg
@@ -762,15 +786,16 @@ end
 
 function getclipboard()
 	if fakeClipBoard then
-		return clipboard 
+		return clipboard
 	end
-	local fh = false
+	local fh
 	if windowsClipBoard then
 		fh = io.popen("paste.exe")
 	else
 		--fh = io.popen("xsel")
 		fh = io.popen("wl-paste")
 	end
+	if not fh then error("could not open clipboard program") end
 	local res = fh:read("*a")
 	res = res:sub(0,#res-1)
 	if windowsClipBoard then
@@ -784,21 +809,24 @@ function getclipboard()
 	end
 	return res
 end
-function setclipboard(text)
+local function setclipboard(text)
 	if fakeClipBoard then
 		clipboard = text
 		return
 	end 
-	local fh = false
+	local fh = nil
+	local succ, e, msg
 	if windowsClipBoard then
 		local f = io.open("clipboard","wb")
+		if not f then error("could not open clipboard") end
 		f:write(text)
 		f:close()
 		os.execute("clip.exe < clipboard")
 		os.execute("rm clipboard")
 	else
-		fh = io.popen("xsel -i","w")
+		--fh = io.popen("xsel -i","w")
 		fh = io.popen("wl-copy","w")
+		if not fh then error("could not open wl-copy") end
 		fh:write(text)
 		succ, e, msg = fh:close()
 		--text = text:gsub("\\","\\\\")
@@ -811,25 +839,25 @@ function setclipboard(text)
 	end
 end
 
-function restoremode(mode)
+local function restoremode(mode)
 	return os.execute(stty.." "..mode)
 end
 
-function runProgram(prog)
+local function runProgram(prog)
 	setsanemode()
-	restoremode(mode)
+	restoremode(origMode)
 	os.execute(prog)
 	print("press enter to continue")
-	io.read()
+	_ = io.read()
 	setrawmode()
 	--make all windows re-render
 	for i,k in pairs(windows) do
 		windows[i].redraw = true
 	end
 end
-function runProgramNoPause(prog)
+local function runProgramNoPause(prog)
 	setsanemode()
-	restoremode(mode)
+	restoremode(origMode)
 	os.execute(prog)
 	setrawmode()
 	for i,k in pairs(windows) do
@@ -837,13 +865,19 @@ function runProgramNoPause(prog)
 	end
 end
 
-function getcurpos()
+local function getNextByte()
+	local byte = io.read(1)
+	printLog("byte "..string.byte(byte).." "..((string.byte(byte) > 31 and string.byte(byte) < 127) and byte or ""))
+	if not clear then print("byte "..string.byte(byte).." "..((string.byte(byte) > 31 and string.byte(byte) < 127) and byte or "")..esc.."K".."\r") end
+	return byte
+end
+
+local function getcurpos()
 	-- return current cursor position (line, column as integers)
-	io.write(string.char(27).."[6n") -- report cursor position. answer: esc[n;mR
+	io.write("\027[6n") -- report cursor position. answer: esc[n;mR
 	local c, i = 0, 0
 	local s = ""
-	--c = getNextByte(); if c ~= "\x1b" then return nil end
-	c = getNextByte(); if c ~= csi then return nil end
+	c = getNextByte(); if c ~= "\x1b" then return nil end
 	c = getNextByte(); if c ~= "["	  then return nil end
 	while true do
 		i = i + 1
@@ -858,14 +892,14 @@ function getcurpos()
 	return tonumber(n), tonumber(m)
 end
 
-function up(a) io.write(esc..(a or 1).."A") end
-function down(a) io.write(esc..(a or 1).."B") end
-function left(a) io.write(esc..(a or 1).."D") end
-function right(a) io.write(esc..(a or 1).."C") end
+local function up(a) io.write(esc..(a or 1).."A") end
+local function down(a) io.write(esc..(a or 1).."B") end
+local function left(a) io.write(esc..(a or 1).."D") end
+local function right(a) io.write(esc..(a or 1).."C") end
 
-function getScreenSize()
+local function getScreenSize()
 	-- return current screen dimensions (line, coloumn as integers)
-	mod = savemode()
+	local mod = savemode()
 	down(9999); right(9999)
 	local l, c = getcurpos()
 	restoremode(mod)
@@ -997,13 +1031,6 @@ function win:checkHideCursor()--if our cursor if off screen, don't let it blink
 	return ""
 end
 
-function getNextByte()
-	local byte = io.read(1)
-	printLog("byte "..string.byte(byte).." "..((string.byte(byte) > 31 and string.byte(byte) < 127) and byte or ""))
-	if not clear then print("byte "..string.byte(byte).." "..((string.byte(byte) > 31 and string.byte(byte) < 127) and byte or "")..esc.."K".."\r") end
-	return byte
-end
-
 
 function win:updateRowRender(row,g)
 	if row <= #self.rows then
@@ -1020,11 +1047,11 @@ function win:updateRender()
 	self:updateSyntaxHighlight()
 end
 
-function isSeperator(s)
+local function isSeperator(s)
 	local st,en = s:find("[%{%}%,%.%(%)%+%-%/%:%*%=%~%%%<%>%[%]%;\t ]")
 	if st then return true else return false end
 end
-function isOperator(s)
+local function isOperator(s)
 	local st,en = s:find("[%+%-%/%*%=%~%%%<%>%&%|%#%:]")
 	if st then return true else return false end
 end
@@ -1059,19 +1086,15 @@ function win:updateRowSyntaxHighlight(row)
 		multiCommentStart = self.multiComment[1]:sub(1,1)
 		multiCommentEnd = self.multiComment[2]:sub(1,1)
 	end
-	
-	local continue = true
-	
+	local prev_c
 	while i <= #self.rrows[row] do
-		continue = true
 		local c = "1"
 		local symb = self.rrows[row]:sub(i,i)
 		if not self.highlights then 
 			c = "1"
-			--goto CONTINUE
-			continue = false
+			goto CONTINUE
 		end
-		if (self.filetype == "c" or self.filetype == "c++") and continue then
+		if self.filetype == "c" or self.filetype == "c++" then
 			if i == 1 and symb == "#" or (i == 2 and prev_symb == " " and symb == "#") then
 				c = string.rep("2",#self.rrows[row])
 				res = res..c
@@ -1079,68 +1102,58 @@ function win:updateRowSyntaxHighlight(row)
 			end
 		end
 
-		if in_comment and continue then
+		if in_comment then
 			c = "4"
-			--goto CONTINUE
-			continue = false
+			goto CONTINUE
 		end
-		if (inmulticomment and not in_string) and continue then
+		if inmulticomment and not in_string then
 			if symb == multiCommentEnd and i + #self.multiComment[2]-1 <= #self.rrows[row] then
 				if self.rrows[row]:sub(i,i+#self.multiComment[2]-1) == self.multiComment[2] then
 					c = "44"
 					inmulticomment = false
 					i = i + 1
-					--goto CONTINUE
-					continue = false
+					goto CONTINUE
 				else
 					c = "4"
-					--goto CONTINUE
-					continue = false
+					goto CONTINUE
 				end
 			else
 				c = "4"
-				--goto CONTINUE
-				continue = false
+				goto CONTINUE
 			end
 		end
-		if (symb == commentStart and i + #self.comment-1 <= #self.rrows[row] and not in_string) and continue then
+		if symb == commentStart and i + #self.comment-1 <= #self.rrows[row] and not in_string then
 			if i + #self.multiComment[1]-1 <= #self.rrows[row] and self.rrows[row]:sub(i,i+#self.multiComment[1]-1) == self.multiComment[1] then
 				inmulticomment = true
 				c = "4"
-				--goto CONTINUE
-				continue = false
+				goto CONTINUE
 			elseif self.rrows[row]:sub(i,i+#self.comment-1) == self.comment then
 				c = "4"
 				in_comment = true
-				--goto CONTINUE
-				continue = false
+				goto CONTINUE
 			end
 		end
 		
-		if in_string and continue then
+		if in_string then
 			if symb == "\\" and i + 1 < #self.rrows[row] then
 				i = i + 1
 				c = "33"
 				prev_sep = true
-				--goto CONTINUE
-				continue = false
-			else
-				if symb == in_string then in_string = false end
-				c = "3"
-				prev_sep = true
-				--goto CONTINUE
-				continue = false
+				goto CONTINUE
 			end
-		elseif continue then
+			if symb == in_string then in_string = false end
+			c = "3"
+			prev_sep = true
+			goto CONTINUE
+		else
 			if symb == "'" or symb == '"' then
 				in_string = symb
 				c = "3"
-				--goto CONTINUE
-				continue = false
+				goto CONTINUE
 			end
 		end
 		
-		if symb == "." and continue then
+		if symb == "." then
 			local word = self.rrows[row]:sub(lastsep+1,i)
 			--print(word,lastsep,i)
 			if self.highlights[word] then
@@ -1152,12 +1165,11 @@ function win:updateRowSyntaxHighlight(row)
 				end
 				res = res..string.rep(self.highlights[word],#word-1)
 				c = "1"
-				--goto CONTINUE
-				continue = false
+				goto CONTINUE
 			end
 		end
 
-		if prev_sep and continue then
+		if prev_sep then
 			local word = self:getWord(row,i)
 			if word and self.highlights[word] then
 				local len = #word
@@ -1165,31 +1177,29 @@ function win:updateRowSyntaxHighlight(row)
 				c = string.rep(self.highlights[word],len)
 				i = i + len-1
 				prev_sep = false
-				--goto CONTINUE
-				continue = false
+				goto CONTINUE
 			elseif word and string.match(word,"^0x%x+$") then--hexidecimal numbers
 				local len = #word
 				c = string.rep("2",len)
 				i = i + len-1
 				prev_sep = false
-				--goto CONTINUE
-				continue = false
+				goto CONTINUE
 			end
 		end
 		
-		if (tonumber(symb) and (prev_sep or prev_c == "2") or (tonumber(prev_symb) and symb == ".")) and continue then
+		if tonumber(symb) and (prev_sep or prev_c == "2") or (tonumber(prev_symb) and symb == ".") then
 			c = "2"
 		end
 		
-		if isOperator(symb) and continue then
+		if isOperator(symb) then
 			c = "5"
 		end
 
-		if continue then prev_sep = isSeperator(symb) end
-		if prev_sep and continue then
+		prev_sep = isSeperator(symb)
+		if prev_sep then
 			lastsep = i
 		end
-		--::CONTINUE::
+		::CONTINUE::
 		prev_symb = symb
 		prev_c = c
 		res = res..c
@@ -1208,7 +1218,7 @@ function win:updateRowSyntaxHighlight(row)
 end
 
 function win:updateSyntaxHighlight()
-	crows = {}
+	self.crows = {}
 	for i = 1,#self.rows do
 		self:updateRowSyntaxHighlight(i)
 	end
@@ -1233,10 +1243,10 @@ function win:rowInsertChar(row,at,char)
 	self:addTextCommand(row,at,char)
 end
 
-function getIndent(str)
+local function getIndent(str)
 	local ind = ""
 	for s = 1,#str do
-		symb = str:sub(s,s)
+		local symb = str:sub(s,s)
 		if symb ~= " " and symb ~= "\t" then break end
 		ind = ind..symb
 	end
@@ -1367,7 +1377,7 @@ function win:rowRemoveChar(row,at)
 end
 
 
-function ctrl(symb)
+local function ctrl(symb)
 	local num = string.byte(symb)
 	if num > 128 then num = num - 128 end
 	if num > 64 then num = num - 64 end
@@ -1401,7 +1411,7 @@ function win:getLastSeperatorInRow(char,row)
 	return pos+1
 end
 
-function copyTable(tab)
+local function copyTable(tab)
 	local t = {}
 	if type(tab) == "table" then
 		for i,k in pairs(tab) do
@@ -1435,7 +1445,7 @@ function win:searchCallback(querry,key)
 		end
 	end
 	for i = 1,self.si.cy do
-		s,e = self.rows[i]:lower():find(querry:lower(),1,querry)
+		local s,e = self.rows[i]:lower():find(querry:lower(),1,querry)
 		while s do
 			if s and numfound >= self.si.lastMatch then
 				self.cursory = i
@@ -1497,6 +1507,7 @@ end
 
 function win:prompt(m,callback)
 	self.message = m
+	---@type boolean|string
 	local response = ""
 	while true do
 		self:drawScreen()
@@ -1526,7 +1537,7 @@ end
 
 function win:getSelectedText()
 	if self.selectionStart[2] == self.selectionEnd[2] then
-		s,e = self.selectionStart[1],self.selectionEnd[1]
+		local s,e = self.selectionStart[1],self.selectionEnd[1]
 		if s > e then e,s = s,e end
 		return self.rows[self.selectionStart[2]]:sub(s,e-1)
 	else
@@ -1597,10 +1608,84 @@ function win:findFirstNonSeperator(row)
 	return #self.rows[row]
 end
 
-welcome = true
+local welcome = true
+
+local function newWindow()--sets defaults
+	local self = {}
+	self.x = 1
+	self.y = 0
+	--state
+	self.filename = ""
+	self.tmux = false
+	self.welcome = true
+	self.tabWidth = 4
+	self.buffers = {}
+	self.cursorx,self.cursory = 1,1
+	self.targetx = 1
+	self.cursorRx = 1
+	self.termLines,self.termCols = 26,50
+	self.rows = {}
+	self.rrows = {}--for rendering
+	self.crows = {}--for colors
+	self.incomment = {}
+	self.lineEnding = "\n"
+	self.filetype = ""
+	self.scroll = 0
+	self.colScroll = 0
+	--to see if we should check our window scroll for our cursor or not
+	self.toscroll = true
+	self.cscroll = false
+	--showing cursor or not
+	self.showCursor = true
+	--offset for the ruler
+	self.numOffset = 0
+	self.dirty = false
+	self.quitTimes = 0
+	self.quitConfTimes = 2
+	self.redraw = true
+	self.message = ""
+	--selection
+	self.selectionStart = {}
+	self.selectionEnd = {}
+	self.selecting = false
+	
+	self.errline = {-1,""}
+	
+	self.colors = themes.monokai
+	--self.colors = themes.tomorrowNight
+	--self.colors = themes.tomorrowNightBright
+	self.cleanUndo = 0
+	self.undoStack = {}
+	self.redoStack = {}
+	self.currentCommand = -1
+	self.commandCount = 0
+	self.commandPos = {0,0}
+	self.commandData = ""
+	self.termLines = 0
+	self.termCols = 0
+	self.realTermLines = 0
+	setmetatable(self,{__index = win})
+	return self
+end
+
+---@return integer|nil
+local function insertWindow(nwin)
+	local tabs = {}
+	for i,_ in pairs(windows) do
+		tabs[i] = true
+	end
+	table.insert(windows,nwin)
+	for i,_ in pairs(windows) do
+		if not tabs[i] then
+			return i
+		end
+	end
+	return nil
+end
 
 
-function parseInput(char)
+---@return table|nil,string|nil,string|nil
+local function parseInput(char)
 	local a = ""
 	if char then
 		a = char
@@ -1608,8 +1693,8 @@ function parseInput(char)
 		a = getNextByte()
 	end
 	local args = {}
-	local command = ""
-	local prefix = ""
+	---@type string|nil,string|nil
+	local prefix,command = "",""
 	if a == csi then
 		prefix = getNextByte()
 		if prefix == "[" then
@@ -1646,13 +1731,13 @@ function parseInput(char)
 end
 
 
-function handleKeyInput(charIn)
+local function handleKeyInput(charIn)
 	local args,prefix,a = parseInput(charIn)
 	local w = windows[currentWindow]
 	if w.welcome then w.redraw = true end
 	w.welcome = false
 	
-	if args == nil and prefix == nil then
+	if args == nil and prefix == nil and a ~= nil then
 		if string.byte(a) >= 32 and string.byte(a) < 127 then
 			if w.selecting then
 				w:deleteSelectedText()
@@ -1795,6 +1880,7 @@ function handleKeyInput(charIn)
 				newWin.realTermLines = newWin.termLines+2--account for the status bars
 				newWin:openFile()
 				local id = insertWindow(newWin)
+				if not id then error("could not make new window") end
 				newWin.id = id
 				insertRight(getLeafByID(tree,currentWindow),id)
 				currentWindow = id
@@ -1809,6 +1895,7 @@ function handleKeyInput(charIn)
 				newWin.realTermLines = newWin.termLines+2--account for the status bars
 				newWin:openFile()
 				local id = insertWindow(newWin)
+				if not id then error("could not make new window") end
 				newWin.id = id
 				insertRight(getLeafByID(tree,currentWindow),id)
 				currentWindow = id
@@ -1845,6 +1932,7 @@ function handleKeyInput(charIn)
 			if not w.dirty or w.quitTimes >= 1 then
 				if numwin > 1 then
 					local node = getNodeByID(tree,currentWindow)
+					if not node then error("could not get node for closing") end
 					if node.left.id == currentWindow then
 						--for now close without prompting to save
 						windows[currentWindow] = nil
@@ -1957,7 +2045,9 @@ function handleKeyInput(charIn)
 		if a == "~" then
 			if w.selecting then w.redraw = true end
 			w.selecting = false
-			if args[1] == 1 then --home 
+			if not args then
+				--idk
+			elseif args[1] == 1 then --home 
 				w:pushCommand()
 				local fns = w:findFirstNonSeperator(w.cursory)
 				if w.cursorx == fns then
@@ -2175,7 +2265,7 @@ function handleKeyInput(charIn)
 		w:moveCursor(a)
 		if w.selecting then w.redraw = true end
 		w.selecting = false
-	elseif prefix == "[<" then --mouse
+	elseif prefix == "[<" and args then --mouse
 		--local sf = false
 		local ot = false
 		local ex = false
@@ -2220,7 +2310,7 @@ function handleKeyInput(charIn)
 				end
 			elseif args[1] == 1 then--mouse wheel down scroll down
 				if #w.rows > 0 then
-					ws = w.scroll
+					local ws = w.scroll
 					w.scroll = math.min(w.scroll + 3,#w.rows-1)
 					if #windows < 2 and ws < #w.rows-4 then
 						io.write(esc.."3S")
@@ -2284,12 +2374,8 @@ function handleKeyInput(charIn)
 	end
 end
 
-function win:syntaxColor(c)
-	if type(c) ~= "number" then c = tonumber(c) end
-	return fgCol(self.colors[c])
-end
 
-function bgCol(r,g,b)
+local function bgCol(r,g,b)
 	if type(r) == "table" then
 		b = r[3]
 		g = r[2]
@@ -2297,7 +2383,7 @@ function bgCol(r,g,b)
 	end
 	return esc.."48;2;"..r..";"..g..";"..b.."m"
 end
-function fgCol(r,g,b)
+local function fgCol(r,g,b)
 	if type(r) == "table" then
 		b = r[3]
 		g = r[2]
@@ -2306,11 +2392,16 @@ function fgCol(r,g,b)
 	return esc.."38;2;"..r..";"..g..";"..b.."m"
 end
 
-function clearScreen(buff)
+function win:syntaxColor(c)
+	if type(c) ~= "number" then c = tonumber(c) end
+	return fgCol(self.colors[c])
+end
+
+local function clearScreen(buff)
 	return esc.."2J"..esc.."H"
 end
 
-function setCursor(x,y)
+local function setCursor(x,y)
 	return string.format(esc.."%d;%dH",math.max(0,y),math.max(x,0))
 end
 function win:updateCursor()
@@ -2326,7 +2417,7 @@ function win:genLine(y)
 		if y == math.floor(self.termLines/3) and #self.rows == 0 and self.welcome then
 			local welcomestr = "Hello and welcome to ledit!"
 			str = str..fgCol(150,0,0).."~"..fgCol(255,255,255)
-			ws = string.rep(" ",math.floor((self.termCols-#welcomestr-1)/2))..welcomestr
+			local ws = string.rep(" ",math.floor((self.termCols-#welcomestr-1)/2))..welcomestr
 			str = str..ws
 			str = str..string.rep(" ",self.termCols-#ws-1)
 		else
@@ -2419,7 +2510,7 @@ function win:genLine(y)
 			end
 			start = start - self.colScroll
 			local sel = false
-			currentColor = "-1"
+			local currentColor = "-1"
 			for i = 1,#li do
 				local s = li:sub(i,i)
 				if i == start then
@@ -2454,6 +2545,7 @@ function win:genLine(y)
 			end
 			en = en - self.colScroll
 			local sel = false
+			local currentColor = "-1"
 			for i = 1,#li do
 				local s = li:sub(i,i)
 				if i == 1 then
@@ -2636,7 +2728,7 @@ function win:saveFile()
 		f = f..self.rows[i]
 		f = f..self.lineEnding
 	end
-	file,err = io.open(self.filename,"w")
+	local file,err = io.open(self.filename,"w")
 	if not file then
 		self.message = "Could not save: "..err
 	else
@@ -2656,33 +2748,12 @@ function win:openFile()--opens a file
 	self.undoStack = {}
 	self.redoStack = {}
 	if #self.filename > 0 then
-		--search if file is open in another buffer, if it is then just reference that buffer
-		for w = 1,#windows do
-			if w ~= currentWindow then
-				if windows[w].filename == self.filename then
-					self.rows = windows[w].rows
-					self.crows = windows[w].crows
-					self.rrows = windows[w].rrows
-					self.undoStack = windows[w].undoStack
-					self.redoStack = windows[w].redoStack
-					self.lineEnding = windows[w].lineEnding
-					self.fileType = windows[w].fileType
-					self.comment = windows[w].comment
-					self.multicomment = windows[w].multicomment
-					self.highlights = windows[w].highlights
-					self.incomment = windows[w].incomment
-					self.redraw = windows[w].redraw
-					self.dirty = windows[w].dirty
-					return
-				end
-			end
-		end
 		local fi = io.open(self.filename,"r")
 		if fi then
 			self.lineEnding = false
 			for l in io.lines(self.filename) do
 				if not self.lineEnding then
-					s,e = l:find("\r")
+					local s,e = l:find("\r")
 					if s then self.lineEnding = "\r\n"
 					else self.lineEnding = "\n" end
 				end
@@ -2721,7 +2792,7 @@ function win:openFile()--opens a file
 		elseif self.filetype == "go" then
 			self.highlights = goHighlights
 			self.comment = goComment
-			self.multiComment = multiComment
+			self.multiComment = goMultiComment
 			self.filetype = "go"
 		else
 			self.highlights = nil
@@ -2736,79 +2807,7 @@ function win:openFile()--opens a file
 	self.cursorRx = self.numOffset
 end
 
-function newWindow()--sets defaults
-	local self = {}
-	self.x = 1
-	self.y = 0
-	--state
-	self.filename = ""
-	self.tmux = false
-	self.welcome = true
-	self.tabWidth = 4
-	self.buffers = {}
-	self.cursorx,cursory = 1,1
-	self.targetx = 1
-	self.cursorRx = 1
-	self.termLines,termCols = 26,50
-	self.rows = {}
-	self.rrows = {}--for rendering
-	self.crows = {}--for colors
-	self.incomment = {}
-	self.lineEnding = "\n"
-	self.filetype = ""
-	self.scroll = 0
-	self.colScroll = 0
-	--to see if we should check our window scroll for our cursor or not
-	self.toscroll = true
-	self.cscroll = false
-	--showing cursor or not
-	self.showCursor = true
-	--offset for the ruler
-	self.numOffset = 0
-	self.dirty = false
-	self.quitTimes = 0
-	self.quitConfTimes = 2
-	self.redraw = true
-	self.message = ""
-	--selection
-	self.selectionStart = {}
-	self.selectionEnd = {}
-	self.selecting = false
-	
-	self.errline = {-1,""}
-	
-	self.colors = themes.monokai
-	--self.colors = themes.tomorrowNight
-	--self.colors = themes.tomorrowNightBright
-	self.cleanUndo = 0
-	self.undoStack = {}
-	self.redoStack = {}
-	self.currentCommand = -1
-	self.commandCount = 0
-	self.commandPos = {0,0}
-	self.commandData = ""
-	self.termLines = 0
-	self.termCols = 0
-	self.realTermLines = 0
-	setmetatable(self,{__index = win})
-	return self
-end
-
-function insertWindow(win)
-	local tabs = {}
-	for i,_ in pairs(windows) do
-		tabs[i] = true
-	end
-	table.insert(windows,win)
-	for i,_ in pairs(windows) do
-		if not tabs[i] then
-			return i
-		end
-	end
-	return nil
-end
-
-function newBuffer()
+local function newBuffer()
 	local buf = {}
 	buf.rows = {}
 	buf.rrows = {}
@@ -2817,38 +2816,32 @@ function newBuffer()
 	return buf
 end
 
-windows = {}
-buffers = {}
 windows[1] = newWindow()
---windows = newWindow()
---windows[1].filename = "ledit.lua"
-ags = {...}
+
 if ags[1] then
 	windows[1].filename = ags[1]
 end
 
-pr = print
+local pr = print
 function print(...)
 	pr(...,"\n")
 end
 
-priv = true
+local priv = true
 if ags[2] and ags[2] == "no" then
 	priv = false
 end
 windows[1].id = 1
-currentWindow = 1--window input should be affecting
-
-running = true
-clear = true
 tree = {}
 tree.id = 1
 
-function main()
-	mode,err,msg = savemode()
+local function main()
+	local err,msg
+	origMode,err,msg = savemode()
 	--
 	local line = 0
-	if mode then
+	local ccax,ccay
+	if origMode then
 		if priv then
 			io.write(esc.."?1049h")
 		end
@@ -2859,27 +2852,23 @@ function main()
 		local w = windows[1]
 		w.x = 1
 		th,tw = getScreenSize()
-		--th,tw = 49,213
-		--print("test\r\ntest",th,tw)
 		w.termLines,w.termCols = th,tw
 		w.realTermLines = w.termLines
 		w.termLines = w.termLines - 2
-		stat = true
+		--stat = true
 		local function errorfunc(err)
 			setsanemode()
-			restoremode(mode)
+			restoremode(origMode)
 			if priv then
 				io.write(esc.."?1049l")
 			end
 			print("error")
 			print(debug.traceback(err,2))
-			print(err)
 			os.exit()
 		end
 		--w.openFile(w)
-		stat,erro = pcall(w.openFile,w)
-		if not stat then errorfunc(erro) end
-		--xpcall(w.openFile,errorfunc,w)
+		--stat,erro = pcall(w.openFile,w)
+		xpcall(w.openFile,errorfunc,w)
 		--if not stat then
 		--	line = 1
 		--	goto END
@@ -2889,9 +2878,8 @@ function main()
 		--renderTree(windows)
 		while running do
 			--handleKeyInput()
-			stat,erro = pcall(handleKeyInput)
-			if not stat then errorfunc(erro) end
-			--xpcall(handleKeyInput,errorfunc)
+			--stat,erro = pcall(handleKeyInput)
+			xpcall(handleKeyInput,errorfunc)
 			--if not stat then
 			--	line = 3
 			--	break
@@ -2899,11 +2887,10 @@ function main()
 
 			if clear then
 				for i,_ in pairs(windows) do
-					if i ~= currentWindow then
+					if (i == currentWindow or windows[i].redraw) and i ~= currentWindow then
 						--windows[i].drawScreen(windows[i])
-						stat,erro = pcall(windows[i].drawScreen,windows[i])
-						if not stat then errorfunc(erro) end
-						--xpcall(windows[i].drawScreen,errorfunc,windows[i])
+						--stat,erro = pcall(windows[i].drawScreen,windows[i])
+						xpcall(windows[i].drawScreen,errorfunc,windows[i])
 						--if not stat then
 						--	line = 4
 						--	break
@@ -2912,9 +2899,8 @@ function main()
 					end
 				end
 				--windows[currentWindow].drawScreen(windows[currentWindow])
-				stat,erro = pcall(windows[currentWindow].drawScreen,windows[currentWindow])
-				if not stat then errorfunc(erro) end
-				--xpcall(windows[currentWindow].drawScreen,errorfunc,windows[currentWindow])
+				--stat,erro = pcall(windows[currentWindow].drawScreen,windows[currentWindow])
+				xpcall(windows[currentWindow].drawScreen,errorfunc,windows[currentWindow])
 				--if not stat then
 				--	line = 4
 				--	break
@@ -2935,7 +2921,7 @@ function main()
 	setCursor(ccax,ccay)
 	
 	setsanemode()
-	restoremode(mode)
+	restoremode(origMode)
 	if priv then
 		io.write(esc.."?1049l")
 	end
