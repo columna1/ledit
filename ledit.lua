@@ -2762,6 +2762,27 @@ function win:openFile()--opens a file
 	self.undoStack = {}
 	self.redoStack = {}
 	if #self.filename > 0 then
+		--search if file is open in another buffer, if it is then just reference that buffer
+		for w = 1,#windows do
+			if w ~= currentWindow then
+				if windows[w].filename == self.filename then
+					self.rows = windows[w].rows
+					self.crows = windows[w].crows
+					self.rrows = windows[w].rrows
+					self.undoStack = windows[w].undoStack
+					self.redoStack = windows[w].redoStack
+					self.lineEnding = windows[w].lineEnding
+					self.fileType = windows[w].fileType
+					self.comment = windows[w].comment
+					self.multicomment = windows[w].multicomment
+					self.highlights = windows[w].highlights
+					self.incomment = windows[w].incomment
+					self.redraw = windows[w].redraw
+					self.dirty = windows[w].dirty
+					return
+				end
+			end
+		end
 		local fi = io.open(self.filename,"r")
 		if fi then
 			self.lineEnding = false
@@ -2904,7 +2925,8 @@ local function main()
 
 			if clear then
 				for i,_ in pairs(windows) do
-					if (i == currentWindow or windows[i].redraw) and i ~= currentWindow then
+					--if (i == currentWindow or windows[i].redraw) and i ~= currentWindow then
+					if i ~= currentWindow then
 						--windows[i].drawScreen(windows[i])
 						--stat,erro = pcall(windows[i].drawScreen,windows[i])
 						stat,erro = pcall(windows[i].drawScreen,windows[i])
