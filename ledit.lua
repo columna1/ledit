@@ -92,7 +92,9 @@
 	bugs:
 		using shift+up doesn't quite work as one might expect
 		lua errors don't seem to display correctly in panes
-		when scrolled horisontally with tabs at the begining of the line clicking near the begining of the line doesn't behave as expected
+		when scrolled horizontally with tabs at the begining of the line clicking near the begining of the line doesn't behave as expected
+			in function win:rxtocx, should factor colscroll to be within function
+		when deleting/adding multiple lines in some cases we update on every line. this can cause things like undo/redo with many lines take a long time.
 
 	--cutting or deletion of a section doesn't update the multi-comment table correctly?
 
@@ -501,7 +503,7 @@ function win:undo(com)
 
 	if comm[1] == 1 then--text add command,
 		for i = 1,#comm[3] do
-			self:rowRemoveChar(comm[2][2],comm[2][1]+1)
+			self:rowRemoveChar(comm[2][2],comm[2][1]+1,true)
 		end
 		self.cursorx,self.cursory = comm[2][1],comm[2][2]
 		self.redraw = true
@@ -515,7 +517,7 @@ function win:undo(com)
 			if symb == "\n" then
 				self:insertRow(self.cursory,self.cursorx,true)
 			else
-				self:rowInsertChar(self.cursory,self.cursorx,symb)
+				self:rowInsertChar(self.cursory,self.cursorx,symb,true)
 			end
 		end
 		self.redraw = true
@@ -1251,7 +1253,7 @@ function win:updateSyntaxHighlight()
 end
 
 
-function win:rowInsertChar(row,at,char)
+function win:rowInsertChar(row,at,char,dr)
 	if #self.rows == 0 then table.insert(self.rows,"") end
 	local result = ""
 	local fp = self.rows[row]:sub(1,at-1)
@@ -1263,7 +1265,7 @@ function win:rowInsertChar(row,at,char)
 	self.dirty = true
 	self.quitTimes = 0
 	self.toscroll = true
-	self:drawLine(self.cursory)
+	if not dr then self:drawLine(self.cursory) end
 
 	--add to undo
 	self:addTextCommand(row,at,char)
@@ -1365,7 +1367,7 @@ function win:insertText(row,at,str)
 	self:pushCommand()
 end
 
-function win:rowRemoveChar(row,at)
+function win:rowRemoveChar(row,at,dr)
 	local tr,tc = row,at
 	if at == #self.rows[row] + 2 and row < #self.rows then
 		row = row + 1
@@ -1392,7 +1394,7 @@ function win:rowRemoveChar(row,at)
 		self.rows[row] = fp..lp
 		self:updateRowRender(row)
 		self:setcursorx(math.max(self.cursorx - 1,1))
-		self:drawLine(self.cursory)
+		if not dr then self:drawLine(self.cursory) end
 	end
 	self.numOffset = #tostring(#self.rows)+2
 	self.dirty = true
@@ -2342,6 +2344,7 @@ local function handleKeyInput(charIn)
 				if a == "M" then--mouse pressed
 					w:pushCommand()
 					local di = true
+					--if we didn't click on our current window
 					if not (args[2] > w.x and args[2] <= w.x+w.termCols and args[3] > w.y and args[3] <= w.y+w.termLines) then
 						di = false
 						for i,_ in pairs(windows) do
