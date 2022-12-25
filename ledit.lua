@@ -95,6 +95,7 @@
 		when scrolled horizontally with tabs at the begining of the line clicking near the begining of the line doesn't behave as expected
 			in function win:rxtocx, should factor colscroll to be within function
 		when deleting/adding multiple lines in some cases we update on every line. this can cause things like undo/redo with many lines take a long time.
+		when selecting and scrolling up (eg ctrl+up) there is weird behaviour when the screen scrolls
 
 	--cutting or deletion of a section doesn't update the multi-comment table correctly?
 
