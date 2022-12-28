@@ -521,13 +521,9 @@ function win:undo(com)
 	end
 
 	if comm[1] == 1 then--text add command,
-<<<<<<< HEAD
-		for i = 1,#comm[3] do
-			self:rowRemoveChar(comm[2][2],comm[2][1]+1,true)
-=======
 		for _ = 1,#comm[3] do
-			self:rowRemoveChar(comm[2][2],comm[2][1]+1)
->>>>>>> 5e800f2 (added solarized)
+			self:rowRemoveChar(comm[2][2],comm[2][1]+1,true)
+
 		end
 		self.cursorx,self.cursory = comm[2][1],comm[2][2]
 		self.redraw = true
