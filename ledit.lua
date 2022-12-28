@@ -87,6 +87,8 @@
 	double click to select a word?
 	if a word is selected then highlight matching words?
 	scrolling using cursor/arrow keys should be made more efficent as well
+	better exec (what is selected)
+	fzf
 
 
 	bugs:
@@ -104,7 +106,7 @@
 		should be one single file for portability
 
 ]]
-
+--[[
 local function printTable(tabl, wid)
 	if not wid then wid = 1 end
 	--if wid > 1 then return end
@@ -123,14 +125,14 @@ local function printTable(tabl, wid)
 			print(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. (v and "true" or "false") ..",")
 		end
 	end
-end
+end]]
 
 --state
 local running = true
 local currentWindow = 1--window input should be affecting
 local clear = true
 local windows = {}
-local buffers = {}
+--local buffers = {}
 --windows = newWindow()
 --windows[1].filename = "ledit.lua"
 local ags = {...}
@@ -143,7 +145,7 @@ local stty = "stty"
 
 local csi = string.char(0x1b)
 local esc = csi.."["
-local endl = "\r\n"
+--local endl = "\r\n"
 
 
 local clipboard = ""
@@ -182,6 +184,20 @@ local themes = {
 		  { 21,232, 13},--green for x scroll notification 9
 		  { 50, 50, 50},--current line 10
 		  { 60, 60, 60},--line number bg 11
+	},
+["solarized-dark"] = {
+	[0] = {0,43,54},--background
+		  {131,148,150},--foreground 1
+		  {42,161,152},--number/self 2
+		  {181,137,0},--string 3
+		  {101,123,131},--comment 4
+		  {133,153,0},--keyword 5
+		  {38,139,210},--builtins 6
+		  {},--background 7
+		  {},--"function arguments" 8
+		  {220,50,47},--red for x scroll notification 9
+		  {7,54,66},--current line 10
+		  {7,54,66},--line number bg 11
 	},
 ["tomorrowNight"] = {
 	[0] = { 29, 31, 33},--background
@@ -233,9 +249,10 @@ local themes = {
 local win = {}
 
 local tree = {}
+--[[
 local function newNode(left,right)
 	return {["left"] = left,["right"] = right}
-end
+end]]
 
 local function isLeaf(node)
 	if not node.left and not node.right and node.id then
@@ -250,6 +267,7 @@ local function isNode(node)
 	return false
 end
 
+--[[
 local function insertLeft(node,nodeID)
 	if isLeaf(node) then
 		node.left = {["id"] = nodeID}
@@ -259,6 +277,7 @@ local function insertLeft(node,nodeID)
 	end
 	return false
 end
+]]
 local function insertRight(node,nodeID)
 	if isLeaf(node) then
 		node.left = {["id"] = node.id}
@@ -332,7 +351,6 @@ local function updateSize(node,width,height,x,y)
 		end
 		if isLeaf(node.right) then
 			local right = windows[node.right.id]
-			local left = windows[node.left.id]
 			if node.h then
 				right.termCols = width - math.floor(width/2)-offset
 				right.termLines = height-2
@@ -365,18 +383,18 @@ local function updateSize(node,width,height,x,y)
 end
 
 --traverse the tree to find the window with the id we want
-local function getLeafByID(tree,id)
+local function getLeafByID(tre,id)
 	if not id then error("id expected got nil") end
-	if isLeaf(tree) then
-		if id == tree.id then
+	if isLeaf(tre) then
+		if id == tre.id then
 			return tree
 		end
 	else
-		local a = getLeafByID(tree.left,id)
+		local a = getLeafByID(tre.left,id)
 		if a then
 			return a
 		end
-		a = getLeafByID(tree.right,id)
+		a = getLeafByID(tre.right,id)
 		if a then
 			return a
 		end
@@ -384,23 +402,23 @@ local function getLeafByID(tree,id)
 	return false
 end
 
-local function getNodeByID(tree,id)
+local function getNodeByID(tre,id)
 	if not id then error("id expected got nil") end
-	if isNode(tree) then
-		if isNode(tree.left) then
-			local r = getNodeByID(tree.left,id)
+	if isNode(tre) then
+		if isNode(tre.left) then
+			local r = getNodeByID(tre.left,id)
 			if r then
 				return r
 			end
-		elseif tree.left.id == id then
+		elseif tre.left.id == id then
 			return tree
 		end
-		if isNode(tree.right) then
-			local r = getNodeByID(tree.right,id)
+		if isNode(tre.right) then
+			local r = getNodeByID(tre.right,id)
 			if r then
 				return r
 			end
-		elseif tree.right.id == id then
+		elseif tre.right.id == id then
 			return tree
 		end
 	end
@@ -422,12 +440,12 @@ cut is just a delete command
 delete selection is just delete command
 etc.
 ]]
-
+--[[
 local function sleep(n)
 	local clock = os.clock
 	local t0 = clock()
 	while clock() - t0 <= n do end
-end
+end]]
 
 local function copyTable(tab)
 	local t = {}
@@ -503,8 +521,13 @@ function win:undo(com)
 	end
 
 	if comm[1] == 1 then--text add command,
+<<<<<<< HEAD
 		for i = 1,#comm[3] do
 			self:rowRemoveChar(comm[2][2],comm[2][1]+1,true)
+=======
+		for _ = 1,#comm[3] do
+			self:rowRemoveChar(comm[2][2],comm[2][1]+1)
+>>>>>>> 5e800f2 (added solarized)
 		end
 		self.cursorx,self.cursory = comm[2][1],comm[2][2]
 		self.redraw = true
@@ -726,7 +749,7 @@ function win:checkFile()
 				line = err:match(":(%d+):")
 			end
 			self.message = self.message.." Parse error found on line "..line
-			local s,e = err:find(":")
+			local s,_ = err:find(":")
 			self.errline = {tonumber(line),err:sub(s)}
 		else
 			self.errline = {-1,""}
@@ -740,7 +763,7 @@ local function startLog(filename)
 		log = io.open(filename,"w")
 	end
 end
-local function endLog(filename)
+local function endLog()
 	if log then
 		log:close()
 		log = false
@@ -748,7 +771,7 @@ local function endLog(filename)
 end
 local function printLog(msg,...)
 	if log then
-		log:write(msg.."\n")
+		log:write(msg.."\n",...)
 		log:flush()
 	end
 end
@@ -795,7 +818,7 @@ local function savemode()
 	return succ and mode or nil, e, msg
 end
 
-function getclipboard()
+local function getclipboard()
 	if fakeClipBoard then
 		return clipboard
 	end
@@ -813,7 +836,7 @@ function getclipboard()
 		--res = res:sub(1,#res-2)
 		res = res:gsub("\r\n","\n")
 	end
-	local succ, e, msg = fh:close()
+	local succ = fh:close()
 	--return succ and res or false, e, msg
 	if not succ then
 		res = clipboard
@@ -826,7 +849,7 @@ local function setclipboard(text)
 		return
 	end
 	local fh = nil
-	local succ, e, msg
+	local succ
 	if windowsClipBoard then
 		local f = io.open("clipboard","wb")
 		if not f then error("could not open clipboard") end
@@ -839,7 +862,7 @@ local function setclipboard(text)
 		fh = io.popen("wl-copy","w")
 		if not fh then error("could not open wl-copy") end
 		fh:write(text)
-		succ, e, msg = fh:close()
+		succ = fh:close()
 		--text = text:gsub("\\","\\\\")
 		--text = text:gsub('"','\\"')
 		--os.execute("wl-copy \""..text..'"')
@@ -862,7 +885,7 @@ local function runProgram(prog)
 	_ = io.read()
 	setrawmode()
 	--make all windows re-render
-	for i,k in pairs(windows) do
+	for i,_ in pairs(windows) do
 		windows[i].redraw = true
 	end
 end
@@ -871,7 +894,7 @@ local function runProgramNoPause(prog)
 	restoremode(origMode)
 	os.execute(prog)
 	setrawmode()
-	for i,k in pairs(windows) do
+	for i,_ in pairs(windows) do
 		windows[i].redraw = true
 	end
 end
@@ -905,9 +928,9 @@ local function getcurpos()
 	return tonumber(n), tonumber(m)
 end
 
-local function up(a) io.write(esc..(a or 1).."A") end
+--local function up(a) io.write(esc..(a or 1).."A") end
 local function down(a) io.write(esc..(a or 1).."B") end
-local function left(a) io.write(esc..(a or 1).."D") end
+--local function left(a) io.write(esc..(a or 1).."D") end
 local function right(a) io.write(esc..(a or 1).."C") end
 
 local function getScreenSize()
@@ -983,7 +1006,7 @@ function win:RxtoCx(row,rx)
 	if type(row) == "number" then
 		row = self.rows[row]
 	end
-	local cx = 0
+	--local cx = 0
 	local xx = self.numOffset
 	local lx = xx
 	if rx <= self.numOffset then return 1 end
@@ -1038,10 +1061,6 @@ function win:checkHideCursor()--if our cursor if off screen, don't let it blink
 	else
 		return esc.."?25l"--hide cursor
 	end
-	if self.selecting then
-		return esc.."?25l"
-	end
-	return ""
 end
 
 
@@ -1061,15 +1080,15 @@ function win:updateRender()
 end
 
 local function isSeperator(s)
-	local st,en = s:find("[%{%}%,%.%(%)%+%-%/%:%*%=%~%%%<%>%[%]%;\t ]")
+	local st,_ = s:find("[%{%}%,%.%(%)%+%-%/%:%*%=%~%%%<%>%[%]%;\t ]")
 	if st then return true else return false end
 end
 local function isOperator(s)
-	local st,en = s:find("[%+%-%/%*%=%~%%%<%>%&%|%#%:]")
+	local st,_ = s:find("[%+%-%/%*%=%~%%%<%>%&%|%#%:]")
 	if st then return true else return false end
 end
 function win:getWord(row,col)
-	local st,en = self.rrows[row]:find("[%#%{%}%,%(%)%+%-%/%:%*%=%~%%%<%>%[%]%;\t ]",col)
+	local st,_ = self.rrows[row]:find("[%#%{%}%,%(%)%+%-%/%:%*%=%~%%%<%>%[%]%;\t ]",col)
 	if not st and #self.rrows[row] > 1 then
 		st = #self.rrows[row]+1
 	end
@@ -1092,11 +1111,11 @@ function win:updateRowSyntaxHighlight(row)
 	local in_comment = false
 	local inmulticomment = row > 1 and self.incomment[row-1] or false
 	local commentStart = ""
-	local multiCommentStart = ""
+	--local multiCommentStart = ""
 	local multiCommentEnd = ""
 	if self.highlights and self.multiComment then
 		commentStart = self.comment:sub(1,1)
-		multiCommentStart = self.multiComment[1]:sub(1,1)
+		--multiCommentStart = self.multiComment[1]:sub(1,1)
 		multiCommentEnd = self.multiComment[2]:sub(1,1)
 	end
 	local prev_c
@@ -1578,7 +1597,7 @@ function win:deleteSelectedText()
 		local line = self.selectionStart[2]
 		local s,e = self.selectionStart[1],self.selectionEnd[1]
 		if s > e then e,s = s,e end
-		local deletedText = self.rows[line]:sub(s,e-1)
+		deletedText = self.rows[line]:sub(s,e-1)
 		local ft,lt = self.rows[line]:sub(1,s-1),self.rows[line]:sub(e)
 		self.rows[line] = ft..lt
 		self:setcursorx(s)
@@ -1593,7 +1612,7 @@ function win:deleteSelectedText()
 		deletedText = self.rows[fl]:sub(s)
 		self.rows[fl] = self.rows[fl]:sub(1,s-1)
 		deletedText = deletedText.."\n"
-		for l = fl+1,ll-1 do
+		for _ = fl+1,ll-1 do
 			deletedText = deletedText..self.rows[fl+1].."\n"
 			table.remove(self.rows,fl+1)
 			table.remove(self.rrows,fl+1)
@@ -1625,7 +1644,7 @@ function win:findFirstNonSeperator(row)
 	return #self.rows[row]
 end
 
-local welcome = true
+--local welcome = true
 
 local function newWindow()--sets defaults
 	local self = {}
@@ -1809,7 +1828,7 @@ local function handleKeyInput(charIn)
 			w.cscroll = true
 		elseif a == ctrl("q") then--ctrl+q quit
 			local dirty = false
-			for i,k in pairs(windows) do
+			for i,_ in pairs(windows) do
 				if windows[i].dirty then dirty = true ; break end
 			end
 			if dirty then
@@ -1943,7 +1962,7 @@ local function handleKeyInput(charIn)
 			end
 		elseif a == ctrl("w") then--close current window
 			local numwin = 0
-			for i,_ in pairs(windows) do
+			for _,_ in pairs(windows) do
 				numwin = numwin + 1
 			end
 			if not w.dirty or w.quitTimes >= 1 then
@@ -2284,18 +2303,18 @@ local function handleKeyInput(charIn)
 		w.selecting = false
 	elseif prefix == "[<" and args then --mouse
 		--local sf = false
-		local ot = false
+		--local ot = false
 		local ex = false
 		local isDrag = false
-		local isControl = false
-		local isMeta = false
+		--local isControl = false
+		--local isMeta = false
 		local isShift = false
 		--if arg1 >= 256 then sf = true ; arg1 = arg1 - 256 end
-		if args[1] >= 128 then ot       = true ; args[1] = args[1] - 128 end
+		--if args[1] >= 128 then ot       = true ; args[1] = args[1] - 128 end
 		if args[1] >= 64 then ex        = true ; args[1] = args[1] - 64 end
 		if args[1] >= 32 then isDrag    = true ; args[1] = args[1] - 32 end
-		if args[1] >= 16 then isControl = true ; args[1] = args[1] - 16 end
-		if args[1] >= 8 then isMeta     = true ; args[1] = args[1] - 8 end
+		--if args[1] >= 16 then isControl = true ; args[1] = args[1] - 16 end
+		--if args[1] >= 8 then isMeta     = true ; args[1] = args[1] - 8 end
 		if args[1] >= 4 then isShift    = true ; args[1] = args[1] - 4 end
 
 		if ex then
@@ -2415,9 +2434,9 @@ function win:syntaxColor(c)
 	return fgCol(self.colors[c])
 end
 
-local function clearScreen(buff)
-	return esc.."2J"..esc.."H"
-end
+--local function clearScreen()
+--	return esc.."2J"..esc.."H"
+--end
 
 local function setCursor(x,y)
 	return string.format(esc.."%d;%dH",math.max(0,y),math.max(x,0))
@@ -2448,7 +2467,7 @@ function win:genLine(y)
 		local line = y + self.scroll
 		local li = self.rrows[line]
 		local ci = self.crows[line]
-		local len = #li
+		--local len = #li
 
 		--numbers
 		str = str..bgCol(self.colors[11])
@@ -2792,7 +2811,7 @@ function win:openFile()--opens a file
 			self.lineEnding = false
 			for l in io.lines(self.filename) do
 				if not self.lineEnding then
-					local s,e = l:find("\r")
+					local s,_ = l:find("\r")
 					if s then self.lineEnding = "\r\n"
 					else self.lineEnding = "\n" end
 				end
@@ -2846,6 +2865,7 @@ function win:openFile()--opens a file
 	self.cursorRx = self.numOffset
 end
 
+--[[
 local function newBuffer()
 	local buf = {}
 	buf.rows = {}
@@ -2853,7 +2873,7 @@ local function newBuffer()
 	buf.crows = {}
 	buf.incomment = {}
 	return buf
-end
+end]]
 
 windows[1] = newWindow()
 
@@ -2878,7 +2898,7 @@ local function main()
 	local err,msg
 	origMode,err,msg = savemode()
 	--
-	local line = 0
+	--local line = 0
 	local ccax,ccay
 	if origMode then
 		if priv then
@@ -2895,14 +2915,14 @@ local function main()
 		w.realTermLines = w.termLines
 		w.termLines = w.termLines - 2
 		--stat = true
-		local function errorfunc(err)
+		local function errorfunc(er)
 			setsanemode()
 			restoremode(origMode)
 			if priv then
 				io.write(esc.."?1049l")
 			end
 			print("error")
-			print(err)
+			print(er)
 			print(debug.traceback(err,2))
 			os.exit()
 		end
