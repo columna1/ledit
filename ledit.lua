@@ -106,26 +106,6 @@
 		should be one single file for portability
 
 ]]
---[[
-local function printTable(tabl, wid)
-	if not wid then wid = 1 end
-	--if wid > 1 then return end
-	for i,v in pairs(tabl) do
-		--if type(i) == "number" then if i >= 1000 then break end end
-		if type(v) == "table" then
-			print(string.rep(" ", wid * 3) .. i .. " = {")
-			printTable(v, wid + 1)
-			print(string.rep(" ", wid * 3) .. "}")
-		elseif type(v) == "string" then
-			print(string.rep(" ", wid * 3) .. i .. " = \"" .. v .. "\"")
-		elseif type(v) == "number" then
-			print(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. v..",")
-			if v == nil then error("nan") end
-		elseif type(v) == "boolean" then
-			print(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. (v and "true" or "false") ..",")
-		end
-	end
-end]]
 
 --state
 local running = true
@@ -253,6 +233,55 @@ local tree = {}
 local function newNode(left,right)
 	return {["left"] = left,["right"] = right}
 end]]
+
+
+local log = nil
+local function startLog(filename)
+	if not log then
+		log = io.open(filename,"w")
+	end
+end
+local function endLog()
+	if log then
+		log:close()
+		log = false
+	end
+end
+local function printLog(...)
+	local stargs = {...}
+	if log then
+		for i = 1,#stargs do
+			local k = stargs[i]
+			if k == nil then
+				log:write("nil\t")
+			else
+				log:write(tostring(k).."\t")
+			end
+		end
+		log:write("\n")
+		log:flush()
+	end
+end
+
+local function printTable(tabl, wid)
+	if not wid then wid = 1 end
+	--if wid > 1 then return end
+	for i,v in pairs(tabl) do
+		--if type(i) == "number" then if i >= 1000 then break end end
+		if type(v) == "table" then
+			printLog(string.rep(" ", wid * 3) .. i .. " = {")
+			printTable(v, wid + 1)
+			printLog(string.rep(" ", wid * 3) .. "}")
+		elseif type(v) == "string" then
+			printLog(string.rep(" ", wid * 3) .. i .. " = \"" .. v .. "\"")
+		elseif type(v) == "number" then
+			printLog(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. v..",")
+			if v == nil then error("nan") end
+		elseif type(v) == "boolean" then
+			printLog(string.rep(" ", wid * 3) .. "[" .. i .. "] = " .. (v and "true" or "false") ..",")
+		end
+	end
+end
 
 local function isLeaf(node)
 	if not node.left and not node.right and node.id then
@@ -387,7 +416,7 @@ local function getLeafByID(tre,id)
 	if not id then error("id expected got nil") end
 	if isLeaf(tre) then
 		if id == tre.id then
-			return tree
+			return tre
 		end
 	else
 		local a = getLeafByID(tre.left,id)
@@ -411,7 +440,7 @@ local function getNodeByID(tre,id)
 				return r
 			end
 		elseif tre.left.id == id then
-			return tree
+			return tre
 		end
 		if isNode(tre.right) then
 			local r = getNodeByID(tre.right,id)
@@ -419,7 +448,7 @@ local function getNodeByID(tre,id)
 				return r
 			end
 		elseif tre.right.id == id then
-			return tree
+			return tre
 		end
 	end
 	return false
@@ -753,25 +782,6 @@ function win:checkFile()
 	end
 end
 
-local log = nil
-local function startLog(filename)
-	if not log then
-		log = io.open(filename,"w")
-	end
-end
-local function endLog()
-	if log then
-		log:close()
-		log = false
-	end
-end
-local function printLog(msg,...)
-	if log then
-		log:write(msg.."\n",...)
-		log:flush()
-	end
-end
-
 function string:split(delimiter)
   local result = { }
   local from  = 1
@@ -897,7 +907,7 @@ end
 
 local function getNextByte()
 	local byte = io.read(1)
-	printLog("byte "..string.byte(byte).." "..((string.byte(byte) > 31 and string.byte(byte) < 127) and byte or ""))
+	--printLog("byte "..string.byte(byte).." "..((string.byte(byte) > 31 and string.byte(byte) < 127) and byte or ""))
 	if not clear then print("byte "..string.byte(byte).." "..((string.byte(byte) > 31 and string.byte(byte) < 127) and byte or "")..esc.."K".."\r") end
 	return byte
 end
