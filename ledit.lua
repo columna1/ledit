@@ -92,7 +92,8 @@
 
 
 	bugs:
-		using shift+up doesn't quite work as one might expect
+		using shift+up doesn't quite work as one might expect (fixed for the most part, this issue is present when clicking and dragging up, extra char is selected)
+		selections starting on tabs display weird sometimes
 		lua errors don't seem to display correctly in panes
 		when scrolled horizontally with tabs at the begining of the line clicking near the begining of the line doesn't behave as expected
 			in function win:rxtocx, should factor colscroll to be within function
@@ -129,7 +130,7 @@ local esc = csi.."["
 
 
 local clipboard = ""
-local fakeClipBoard = false
+local fakeClipBoard = true
 local windowsClipBoard = false
 
 --[[template
@@ -1854,6 +1855,7 @@ local function handleKeyInput(charIn)
 			tree.y = 0
 			w:updateRender()
 			updateSize(tree)
+			w.redraw = true
 		--elseif a == ctrl("j") then
 			--io.write(esc.."2T")
 			--io.write("Hello")
@@ -2216,8 +2218,10 @@ local function handleKeyInput(charIn)
 				if a2 >= 2 then isAlt = true; a2 = a2-2 end
 				if a2 >= 1 then isShift = true; a2 = a2-1 end
 			end
-
+			local fs = false
 			if not w.selecting and isShift then
+				--w:updateRowRender(w.cursory)
+				w:drawLine(w.cursory)
 				w.selectionStart = {w.cursorx,w.cursory}
 				if a == "A" then--up
 					w.selectionStart[1] = w.selectionStart[1]-1--TODO fix hack
@@ -2225,11 +2229,12 @@ local function handleKeyInput(charIn)
 				if not w.selectionEnd then w.selectionEnd = {w.cursorx,w.cursory} end
 				if not w.selectionEnd[1] then w.selectionEnd = {w.cursorx,w.cursory} end
 				w.selecting = true
+				fs = true
 			elseif not isShift then
 				w.selecting = false
 				w.redraw = true
 			end
-			if w.selecting then w.redraw = true end
+			--if w.selecting then w.redraw = true end
 			if isCtrl and not isAlt then
 				if a == "A" then--up
 					w:moveCursor(a)
@@ -2260,8 +2265,20 @@ local function handleKeyInput(charIn)
 					end
 				end
 			else
+				local ly = w.cursory
 				w:moveCursor(a)
-				if isShift then w.selectionEnd = {w.cursorx,w.cursory} end
+				if isShift then 
+					w.selectionEnd = {w.cursorx,w.cursory}
+					w:drawLine(w.cursory)
+					w:drawLine(ly)
+				end
+				if fs then 
+					w.redraw = true
+					if a == "B" then
+						w:moveCursor("D")
+						w.selectionEnd[1] = w.selectionEnd[1]-1
+					end 
+				end
 			end
 			if isShift then w.selecting = true end
 		elseif a == "Z" then --shift+tab
@@ -2386,8 +2403,6 @@ local function handleKeyInput(charIn)
 						local cx,cy = w.cursorx,w.cursory
 						local lcy = w.cursory
 						w.cursory = math.min(w.scroll+args[3]-w.y,#w.rows)
-						if lcy > w.scroll and lcy <= w.scroll+w.termLines then w:drawLine(lcy) end
-						w:drawLine(w.cursory)
 						w:setcursorx(math.min(#w.rows[w.cursory]+1,w:RxtoCx(w.cursory,args[2]-w.x+1)+w.colScroll))
 						if args[2] <= w.numOffset then w.cursorx = 1 end
 						w.toscroll = true
@@ -2399,11 +2414,19 @@ local function handleKeyInput(charIn)
 								w.selectionEnd = {w.cursorx,w.cursory}
 								w.selecting = true
 							end
-							w.redraw = true
+							--w.redraw = true
 							if isShift then w.cscroll = true end
 						else
 							if w.selecting then w.redraw = true end
 							w.selecting = false
+							w:drawLine(lcy)
+							w:drawLine(w.cursory)
+						end
+						if w.selecting then
+							local inc = lcy > w.cursory and -1 or 1
+							for i = lcy,w.cursory,inc do
+								if i > w.colScroll and i < w.scroll+w.termCols then w:drawLine(i) end
+							end
 						end
 					end
 				end
@@ -2654,20 +2677,8 @@ function win:drawLines()
 			str = str..self:genLine(y)
 			str = str.."\r\n"
 		end
-		if not self.selecting or self.cscroll then
+		if not self.cscroll then
 			renderLine()
-		else--selecting. only update relevant lines
-			local l = y+self.scroll
-			if self.selectionStart[2] == self.selectionEnd[2] then renderLine() end
-			if self.selectionEnd[2] == self.cursory then
-				if math.abs(l-self.selectionEnd[2]) < 2 then
-					renderLine()
-				end
-			elseif self.selectionStart[2] == self.cursory then
-				if math.abs(l-self.selectionStart[2]) < 2  then
-					renderLine()
-				end
-			end
 		end
 	end
 	return str
