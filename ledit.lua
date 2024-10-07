@@ -130,7 +130,7 @@ local esc = csi.."["
 
 
 local clipboard = ""
-local fakeClipBoard = true
+local fakeClipBoard = false
 local windowsClipBoard = false
 
 --[[template
@@ -2677,7 +2677,7 @@ function win:drawLines()
 			str = str..self:genLine(y)
 			str = str.."\r\n"
 		end
-		if not self.cscroll then
+		if not self.selecting or self.cscroll then
 			renderLine()
 		end
 	end
