@@ -1480,6 +1480,7 @@ function win:searchCallback(querry,key)
 				self.selecting = true
 				self.scroll = math.max(self.cursory-math.floor(self.termLines/2),0)
 				self.redraw = true
+				self.cscroll = true
 				return true
 			elseif s then
 				numfound = numfound + 1
@@ -1498,6 +1499,7 @@ function win:searchCallback(querry,key)
 				self.selecting = true
 				self.scroll = math.max(self.cursory-math.floor(self.termLines/2),0)
 				self.redraw = true
+				self.cscroll = true
 				return true
 			elseif s then
 				numfound = numfound + 1
@@ -1513,6 +1515,7 @@ function win:searchCallback(querry,key)
 	self.selecting = copyTable(self.si.selecting)
 	self.toscroll = true
 	self.redraw = true
+	self.cscroll = true
 	return false
 end
 
